@@ -7,11 +7,11 @@ const PRICE_USD = 15_000;
 const DEFAULT_ENTREGA = 6_000_000;
 const MIN_ENTREGA = 5_000_000;
 const MAX_ENTREGA = 12_000_000;
-const STOCK_LOTES = 10;
+const STOCK_LOTES = 15;
 
-// Promo: 15% mayo / 10% junio
+// Promo: 20% mayo / 10% junio (sólo pago contado en pesos)
 const PROMOS = {
-  mayo:  { key: 'mayo',  pct: 15, label: 'Mayo',  note: '15% OFF · hasta el 31 de mayo' },
+  mayo:  { key: 'mayo',  pct: 20, label: 'Mayo',  note: '20% OFF · hasta el 31 de mayo' },
   junio: { key: 'junio', pct: 10, label: 'Junio', note: '10% OFF · hasta el 30 de junio' },
   sin:   { key: 'sin',   pct: 0,  label: 'Lista', note: 'Precio de lista' },
 };
@@ -21,11 +21,12 @@ const DEFAULT_PROMO = CURRENT_MONTH === 5 ? 'junio' : 'mayo';
 /* ─────────────────────── NAV ─────────────────────── */
 function PromoBar() {
   const items = [
-    '15% OFF en mayo · pago contado en pesos',
+    'La Era del Peso · Edición 2026',
+    '20% OFF en mayo · pago contado en pesos',
     '10% OFF en junio · pago contado en pesos',
-    'Solo 10 lotes a este precio',
+    'Solo 15 lotes con esta financiación',
+    'Financiación única en pesos · hasta 48 meses',
     'Aceptamos criptomonedas · USDT · BTC',
-    'Financiación propia hasta 48 meses',
   ];
   return (
     <div className="relative z-50 bg-earth-800 text-cream-100 overflow-hidden border-b border-earth-800">
@@ -245,7 +246,7 @@ function Promocion() {
   const activePct = PROMOS[activeMonth].pct;
 
   const precioLista = PRICE_ARS;
-  const precioMayo  = Math.round(PRICE_ARS * 0.85);
+  const precioMayo  = Math.round(PRICE_ARS * 0.80);
   const precioJunio = Math.round(PRICE_ARS * 0.90);
 
   return (
@@ -254,36 +255,44 @@ function Promocion() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
           {/* LEFT — headline + lot counter */}
           <div className="lg:col-span-7">
+            {/* Slogan eyebrow */}
+            <div className="inline-flex items-center gap-3 mb-6 bg-earth-800 text-cream-50 pl-3 pr-4 py-2 rounded-full">
+              <span className="h-1.5 w-1.5 rounded-full bg-terracotta animate-pulse" />
+              <span className="text-[10px] tracking-[0.35em] uppercase font-medium">La Era del Peso</span>
+              <span className="text-[10px] tracking-[0.2em] uppercase text-cream-200/60">Edición 2026</span>
+            </div>
+
             <div className="flex items-center gap-3 text-terracotta">
               <span className="h-px w-10 bg-terracotta/60" />
               <span className="text-[10px] tracking-[0.3em] uppercase">Promoción limitada · Mayo & Junio 2026</span>
             </div>
             <h2 className="font-display mt-6 text-5xl md:text-6xl lg:text-7xl leading-[1.02] text-earth-800">
-              Solo <span className="font-display-italic text-terracotta">10 lotes</span><br/>
-              a este precio.
+              Solo <span className="font-display-italic text-terracotta">15 lotes</span><br/>
+              con esta financiación.
             </h2>
             <p className="mt-6 text-earth-700/80 text-lg max-w-xl leading-relaxed">
-              Por el cierre del primer semestre liberamos diez lotes con descuento directo
-              sobre el precio de lista en pesos. Reservás con seña y firmás boleto el mismo día.
+              Una franja única: lista de unidades cerrada, descuentos sólo en mayo y junio para pago
+              contado en pesos, y financiación propia en pesos hasta 48 meses para el resto.
+              <span className="block mt-2 text-earth-800">Cuando se cierren las 15, el precio vuelve a lista.</span>
             </p>
 
-            {/* lot counter */}
-            <div className="mt-10 grid grid-cols-10 gap-1.5 max-w-md">
-              {Array.from({ length: 10 }).map((_, i) => (
+            {/* lot counter — 15 unidades */}
+            <div className="mt-10 grid gap-1.5 max-w-md" style={{ gridTemplateColumns: 'repeat(15, 1fr)' }}>
+              {Array.from({ length: 15 }).map((_, i) => (
                 <div
                   key={i}
-                  className={`h-12 rounded-sm ${i < 7 ? 'bg-earth-700' : 'bg-cream-200 border border-earth-700/20'}`}
-                  title={i < 7 ? 'Disponible' : 'Reservado'}
+                  className={`h-12 rounded-sm ${i < 11 ? 'bg-earth-700' : 'bg-cream-200 border border-earth-700/20'}`}
+                  title={i < 11 ? 'Disponible' : 'Reservado'}
                 />
               ))}
             </div>
             <div className="mt-3 flex items-center justify-between max-w-md text-xs text-earth-700/70">
-              <span><span className="text-earth-800 font-medium">7 disponibles</span> · 3 reservados</span>
+              <span><span className="text-earth-800 font-medium">11 disponibles</span> · 4 reservados</span>
               <span>Stock al {new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long' })}</span>
             </div>
 
             <div className="mt-10 flex flex-wrap items-center gap-3">
-              <CTA as="a" href="#contacto">Reservar uno de los 10</CTA>
+              <CTA as="a" href="#contacto">Reservar mi unidad</CTA>
               <a href="#calculadora" className="text-sm text-earth-700 link-underline">o calcular mi cuota →</a>
             </div>
           </div>
@@ -298,7 +307,7 @@ function Promocion() {
                 </span>
               </div>
               <div className="mt-4 flex items-baseline gap-3 flex-wrap">
-                <span className="font-display text-6xl leading-none">15%</span>
+                <span className="font-display text-6xl leading-none">20%</span>
                 <span className={`text-sm ${activeMonth === 'mayo' ? 'text-cream-200/80' : 'text-earth-700/70'}`}>de descuento</span>
               </div>
               <div className={`mt-4 text-sm ${activeMonth === 'mayo' ? 'text-cream-100/85' : 'text-earth-700/80'}`}>
@@ -517,8 +526,8 @@ function Calculator() {
 /* ─────────────────────── COMPARISON TABLE ─────────────────────── */
 function Planes() {
   const isMay = CURRENT_MONTH === 4;
-  const promoLabel = isMay ? 'Mayo 15% OFF' : 'Junio 10% OFF';
-  const promoPct = isMay ? 15 : 10;
+  const promoLabel = isMay ? 'Mayo 20% OFF' : 'Junio 10% OFF';
+  const promoPct = isMay ? 20 : 10;
   const contadoPrice = Math.round(PRICE_ARS * (1 - promoPct/100));
 
   const plans = [
@@ -543,11 +552,11 @@ function Planes() {
     {
       key: 'corto',
       name: 'Financiado · Corto plazo',
-      tag: 'Más elegido',
+      tag: 'Único en pesos',
       tone: 'dark',
       headline: ARS(1_250_000),
-      headlineSub: 'cuota fija · 12 meses',
-      bullet: 'Entrega ' + ARS(6_000_000) + ' + 12 cuotas fijas',
+      headlineSub: 'cuota fija · 12 meses · sin descuento',
+      bullet: 'Entrega ' + ARS(6_000_000) + ' + 12 cuotas fijas en pesos. Una de las 15 unidades de La Era del Peso.',
       rows: [
         ['Entrega', ARS(6_000_000)],
         ['Cuotas', '12 mensuales'],
@@ -562,11 +571,11 @@ function Planes() {
     {
       key: 'largo',
       name: 'Financiado · Largo plazo',
-      tag: 'Cuota mínima',
+      tag: '15 unidades',
       tone: 'earth',
       headline: ARS(302_083),
-      headlineSub: 'desde · 48 meses IPC',
-      bullet: 'Entrega ' + ARS(6_500_000) + ' + 48 cuotas IPC',
+      headlineSub: 'desde · 48 meses IPC · sin descuento',
+      bullet: 'Entrega ' + ARS(6_500_000) + ' + 24, 36 o 48 cuotas ajustables IPC. Cupo limitado a la lista cerrada.',
       rows: [
         ['Entrega', ARS(6_500_000)],
         ['Cuotas', '24 / 36 / 48 meses'],
@@ -714,8 +723,8 @@ function Contacto() {
   const channels = [
     {
       name: 'WhatsApp',
-      handle: '+54 9 345 422-7683',
-      href: 'https://wa.me/5493454227683',
+      handle: '+54 9 3454 34-0639',
+      href: 'https://wa.me/5493454340639',
       cta: 'Escribir por WhatsApp',
       bg: 'bg-[#25D366]',
       icon: (
@@ -782,7 +791,7 @@ function Contacto() {
           </p>
           <div className="mt-10 space-y-3 text-sm">
             <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-24">Ubicación</span>Estancia Grande · Concordia · Entre Ríos</div>
-            <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-24">Horarios</span>Lun – Vie 9 a 18hs · Sáb con cita</div>
+            <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-24">Horarios</span>Lun – Vie 9 a 17hs</div>
             <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-24">Pagos</span>Pesos · USDT · BTC</div>
           </div>
         </div>
