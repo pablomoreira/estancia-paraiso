@@ -723,7 +723,7 @@ function Contacto() {
   const channels = [
   {
     name: 'WhatsApp',
-    handle: '+54 9 3454 34-0639 +54 9 3454 02-1858 +54 9 3454 02-3467',
+    handle: '+54 9 3454 34-0639</n>+54 9 3454 02-1858</n>+54 9 3454 02-3467',
     href: 'https://wa.me/5493454340639',
     cta: 'Escribir por WhatsApp',
     bg: 'bg-[#25D366]',
