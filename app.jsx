@@ -7,8 +7,41 @@ const PRICE_USD = 15_000;
 const DEFAULT_ENTREGA = 6_000_000;
 const MIN_ENTREGA = 5_000_000;
 const MAX_ENTREGA = 12_000_000;
+const STOCK_LOTES = 10;
+
+// Promo: 15% mayo / 10% junio
+const PROMOS = {
+  mayo:  { key: 'mayo',  pct: 15, label: 'Mayo',  note: '15% OFF · hasta el 31 de mayo' },
+  junio: { key: 'junio', pct: 10, label: 'Junio', note: '10% OFF · hasta el 30 de junio' },
+  sin:   { key: 'sin',   pct: 0,  label: 'Lista', note: 'Precio de lista' },
+};
+const CURRENT_MONTH = (new Date()).getMonth();
+const DEFAULT_PROMO = CURRENT_MONTH === 5 ? 'junio' : 'mayo';
 
 /* ─────────────────────── NAV ─────────────────────── */
+function PromoBar() {
+  const items = [
+    '15% OFF en mayo · pago contado en pesos',
+    '10% OFF en junio · pago contado en pesos',
+    'Solo 10 lotes a este precio',
+    'Aceptamos criptomonedas · USDT · BTC',
+    'Financiación propia hasta 48 meses',
+  ];
+  return (
+    <div className="relative z-50 bg-earth-800 text-cream-100 overflow-hidden border-b border-earth-800">
+      <div className="flex whitespace-nowrap py-2.5" style={{ animation: 'marquee 42s linear infinite', width: 'max-content' }}>
+        {[...items, ...items, ...items].map((t, i) => (
+          <span key={i} className="px-6 flex items-center gap-3 tracking-[0.15em] uppercase text-[10px]">
+            <span className="h-1 w-1 rounded-full bg-terracotta" />
+            {t}
+          </span>
+        ))}
+      </div>
+      <style>{`@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-33.333%); } }`}</style>
+    </div>
+  );
+}
+
 function Nav() {
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-cream-100/70 border-b border-earth-700/10">
@@ -22,7 +55,7 @@ function Nav() {
         </a>
         <nav className="hidden md:flex items-center gap-9 text-sm text-earth-700">
           <a href="#lugar" className="link-underline">El lugar</a>
-          <a href="#inversion" className="link-underline">La inversión</a>
+          <a href="#promo" className="link-underline text-terracotta">Promo Mayo</a>
           <a href="#calculadora" className="link-underline">Calculadora</a>
           <a href="#planes" className="link-underline">Planes</a>
         </nav>
@@ -175,7 +208,7 @@ function LaOportunidad() {
               <p>
                 El valor del suelo en zonas rurales productivas creció en promedio
                 un <span className="text-cream-50 font-medium">38% anual en dólares</span> los últimos
-                cinco años. Lomas del Arroyo está en la franja inicial de ese ciclo.
+                cinco años. Estancia Paraíso está en la franja inicial de ese ciclo.
               </p>
             </div>
 
@@ -195,6 +228,115 @@ function LaOportunidad() {
               <div>
                 <div className="font-display text-4xl text-cream-50">0%</div>
                 <div className="text-[10px] tracking-[0.3em] uppercase mt-2 text-cream-200/70">Interés bancario<br/>financiación propia</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────── PROMOCIÓN ─────────────────────── */
+function Promocion() {
+  const isMay = CURRENT_MONTH === 4;
+  const isJun = CURRENT_MONTH === 5;
+  const activeMonth = isJun ? 'junio' : 'mayo';
+  const activePct = PROMOS[activeMonth].pct;
+
+  const precioLista = PRICE_ARS;
+  const precioMayo  = Math.round(PRICE_ARS * 0.85);
+  const precioJunio = Math.round(PRICE_ARS * 0.90);
+
+  return (
+    <section id="promo" className="relative py-20 lg:py-28 bg-cream-100">
+      <div className="max-w-7xl mx-auto px-6 lg:px-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
+          {/* LEFT — headline + lot counter */}
+          <div className="lg:col-span-7">
+            <div className="flex items-center gap-3 text-terracotta">
+              <span className="h-px w-10 bg-terracotta/60" />
+              <span className="text-[10px] tracking-[0.3em] uppercase">Promoción limitada · Mayo & Junio 2026</span>
+            </div>
+            <h2 className="font-display mt-6 text-5xl md:text-6xl lg:text-7xl leading-[1.02] text-earth-800">
+              Solo <span className="font-display-italic text-terracotta">10 lotes</span><br/>
+              a este precio.
+            </h2>
+            <p className="mt-6 text-earth-700/80 text-lg max-w-xl leading-relaxed">
+              Por el cierre del primer semestre liberamos diez lotes con descuento directo
+              sobre el precio de lista en pesos. Reservás con seña y firmás boleto el mismo día.
+            </p>
+
+            {/* lot counter */}
+            <div className="mt-10 grid grid-cols-10 gap-1.5 max-w-md">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-12 rounded-sm ${i < 7 ? 'bg-earth-700' : 'bg-cream-200 border border-earth-700/20'}`}
+                  title={i < 7 ? 'Disponible' : 'Reservado'}
+                />
+              ))}
+            </div>
+            <div className="mt-3 flex items-center justify-between max-w-md text-xs text-earth-700/70">
+              <span><span className="text-earth-800 font-medium">7 disponibles</span> · 3 reservados</span>
+              <span>Stock al {new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long' })}</span>
+            </div>
+
+            <div className="mt-10 flex flex-wrap items-center gap-3">
+              <CTA as="a" href="#contacto">Reservar uno de los 10</CTA>
+              <a href="#calculadora" className="text-sm text-earth-700 link-underline">o calcular mi cuota →</a>
+            </div>
+          </div>
+
+          {/* RIGHT — two month cards */}
+          <div className="lg:col-span-5 flex flex-col gap-4">
+            <div className={`rounded-md p-7 border ${activeMonth === 'mayo' ? 'bg-earth-700 text-cream-50 border-earth-700 shadow-[0_30px_60px_-40px_rgba(74,56,38,0.6)]' : 'bg-cream-50 text-earth-800 border-earth-700/15'}`}>
+              <div className="flex items-center justify-between">
+                <div className={`text-[10px] tracking-[0.3em] uppercase ${activeMonth === 'mayo' ? 'text-cream-200/70' : 'text-earth-600'}`}>Mayo 2026</div>
+                <span className={`text-[10px] tracking-[0.2em] uppercase px-2.5 py-1 rounded-full ${activeMonth === 'mayo' ? 'bg-cream-50/15 text-cream-100' : 'bg-terracotta/15 text-terracotta'}`}>
+                  {activeMonth === 'mayo' ? 'Mes en curso' : 'Cerrado'}
+                </span>
+              </div>
+              <div className="mt-4 flex items-baseline gap-3 flex-wrap">
+                <span className="font-display text-6xl leading-none">15%</span>
+                <span className={`text-sm ${activeMonth === 'mayo' ? 'text-cream-200/80' : 'text-earth-700/70'}`}>de descuento</span>
+              </div>
+              <div className={`mt-4 text-sm ${activeMonth === 'mayo' ? 'text-cream-100/85' : 'text-earth-700/80'}`}>
+                Precio promocional <span className={activeMonth === 'mayo' ? 'text-cream-50 font-medium' : 'text-earth-800 font-medium'}>{ARS(precioMayo)}</span>
+                <span className={`mx-2 ${activeMonth === 'mayo' ? 'text-cream-200/50' : 'text-earth-600/50'} line-through`}>{ARS(precioLista)}</span>
+              </div>
+              <div className={`mt-2 text-xs ${activeMonth === 'mayo' ? 'text-cream-200/60' : 'text-earth-600/70'}`}>Pago contado en pesos · hasta el 31 de mayo</div>
+            </div>
+
+            <div className={`rounded-md p-7 border ${activeMonth === 'junio' ? 'bg-earth-700 text-cream-50 border-earth-700 shadow-[0_30px_60px_-40px_rgba(74,56,38,0.6)]' : 'bg-cream-50 text-earth-800 border-earth-700/15'}`}>
+              <div className="flex items-center justify-between">
+                <div className={`text-[10px] tracking-[0.3em] uppercase ${activeMonth === 'junio' ? 'text-cream-200/70' : 'text-earth-600'}`}>Junio 2026</div>
+                <span className={`text-[10px] tracking-[0.2em] uppercase px-2.5 py-1 rounded-full ${activeMonth === 'junio' ? 'bg-cream-50/15 text-cream-100' : 'bg-earth-700/10 text-earth-700'}`}>
+                  {activeMonth === 'junio' ? 'Mes en curso' : 'Próximo'}
+                </span>
+              </div>
+              <div className="mt-4 flex items-baseline gap-3 flex-wrap">
+                <span className="font-display text-6xl leading-none">10%</span>
+                <span className={`text-sm ${activeMonth === 'junio' ? 'text-cream-200/80' : 'text-earth-700/70'}`}>de descuento</span>
+              </div>
+              <div className={`mt-4 text-sm ${activeMonth === 'junio' ? 'text-cream-100/85' : 'text-earth-700/80'}`}>
+                Precio promocional <span className={activeMonth === 'junio' ? 'text-cream-50 font-medium' : 'text-earth-800 font-medium'}>{ARS(precioJunio)}</span>
+                <span className={`mx-2 ${activeMonth === 'junio' ? 'text-cream-200/50' : 'text-earth-600/50'} line-through`}>{ARS(precioLista)}</span>
+              </div>
+              <div className={`mt-2 text-xs ${activeMonth === 'junio' ? 'text-cream-200/60' : 'text-earth-600/70'}`}>Pago contado en pesos · hasta el 30 de junio</div>
+            </div>
+
+            {/* crypto card */}
+            <div className="rounded-md p-6 border border-earth-700/15 bg-cream-50 flex items-center gap-5">
+              <div className="flex -space-x-2">
+                <div className="h-11 w-11 rounded-full bg-[#F7931A] flex items-center justify-center text-cream-50 font-bold text-sm border-2 border-cream-50">₿</div>
+                <div className="h-11 w-11 rounded-full bg-[#26A17B] flex items-center justify-center text-cream-50 font-bold text-xs border-2 border-cream-50">USDT</div>
+                <div className="h-11 w-11 rounded-full bg-earth-700 flex items-center justify-center text-cream-50 font-bold text-xs border-2 border-cream-50">+</div>
+              </div>
+              <div className="flex-1">
+                <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">También consultar por</div>
+                <div className="font-display text-xl text-earth-800 mt-0.5">Pago en criptomonedas</div>
+                <div className="text-xs text-earth-700/70 mt-0.5">USDT · BTC · Coordinamos al momento de reservar.</div>
               </div>
             </div>
           </div>
@@ -374,24 +516,29 @@ function Calculator() {
 
 /* ─────────────────────── COMPARISON TABLE ─────────────────────── */
 function Planes() {
+  const isMay = CURRENT_MONTH === 4;
+  const promoLabel = isMay ? 'Mayo 15% OFF' : 'Junio 10% OFF';
+  const promoPct = isMay ? 15 : 10;
+  const contadoPrice = Math.round(PRICE_ARS * (1 - promoPct/100));
+
   const plans = [
     {
       key: 'contado',
-      name: 'Contado',
-      tag: 'Mejor precio',
+      name: 'Contado en pesos',
+      tag: promoLabel,
       tone: 'sage',
-      headline: 'USD 13.950',
-      headlineSub: '~ ' + ARS(19_530_000),
-      bullet: '7% de descuento sobre lista',
+      headline: ARS(contadoPrice),
+      headlineSub: 'Lista ' + ARS(PRICE_ARS) + ' · ' + promoPct + '% OFF',
+      bullet: 'Pago contado en pesos durante ' + (isMay ? 'mayo' : 'junio') + ' · también en criptomonedas',
       rows: [
         ['Entrega', '100% al firmar'],
         ['Cuotas', '—'],
         ['Ajuste', 'Ninguno'],
         ['Boleto', 'Inmediato'],
         ['Escritura', '30 días'],
-        ['Descuento', '7% en USD'],
+        ['Descuento', promoPct + '% sobre lista'],
       ],
-      cta: 'Hablar con un asesor',
+      cta: 'Reservar al precio promo',
     },
     {
       key: 'corto',
@@ -513,7 +660,7 @@ function Planes() {
             </thead>
             <tbody>
               {[
-                ['Precio total estimado', 'USD 13.950 · ' + ARS(19_530_000), 'USD 15.000 · ' + ARS(21_000_000), 'USD 15.000 + IPC'],
+                ['Precio total estimado', ARS(contadoPrice) + ' · ' + promoPct + '% OFF', ARS(21_000_000), 'USD 15.000 + IPC'],
                 ['Entrega inicial', '100%', ARS(6_000_000), ARS(6_500_000)],
                 ['Cantidad de cuotas', '—', '12', '24 / 36 / 48'],
                 ['Tipo de cuota', '—', 'Fija en pesos', 'Ajuste IPC mensual'],
@@ -564,93 +711,121 @@ function Gallery() {
 
 /* ─────────────────────── CONTACT / FOOTER ─────────────────────── */
 function Contacto() {
-  const [sent, setSent] = useState(false);
-  const [form, setForm] = useState({ nombre: '', email: '', mensaje: '' });
-
-  function submit(e) {
-    e.preventDefault();
-    setSent(true);
-  }
+  const channels = [
+    {
+      name: 'WhatsApp',
+      handle: '+54 9 345 422-7683',
+      href: 'https://wa.me/5493454227683',
+      cta: 'Escribir por WhatsApp',
+      bg: 'bg-[#25D366]',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M17.6 14.4c-.3-.1-1.7-.8-2-1-.3-.1-.5-.1-.6.1-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.4-2.3-1.4-.9-.8-1.4-1.7-1.6-2-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.1.2-.3.2-.4.1-.2.1-.3 0-.5 0-.1-.5-1.3-.7-1.8-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2 0 1.3.9 2.5 1 2.7.1.2 1.8 2.7 4.3 3.8.6.3 1.1.4 1.5.5.6.2 1.2.2 1.6.1.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2-.1-.1-.3-.2-.5-.3M12.1 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.4c1.4.8 3.1 1.2 4.9 1.2C17.6 21.9 22 17.4 22 12s-4.4-10-9.9-10z"/></svg>
+      ),
+    },
+    {
+      name: 'Teléfono',
+      handle: '(0345) 422-7683',
+      href: 'tel:+543454227683',
+      cta: 'Llamar ahora',
+      bg: 'bg-earth-700',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      ),
+    },
+    {
+      name: 'Instagram',
+      handle: '@estancia_paraiso_',
+      href: 'https://www.instagram.com/estancia_paraiso_/',
+      cta: 'Ver Instagram',
+      bg: 'bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF]',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>
+      ),
+    },
+    {
+      name: 'Facebook',
+      handle: '/EstanciaParaiso',
+      href: 'https://www.facebook.com/Estancia-Paraiso-131428373990355/',
+      cta: 'Ver Facebook',
+      bg: 'bg-[#1877F2]',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15h-2.4v-3H10V9.5C10 7.57 11.57 6 13.5 6H16v3h-1.5c-.55 0-1 .45-1 1V12H16l-.5 3h-2v6.95C18.05 21.45 22 17.19 22 12z"/></svg>
+      ),
+    },
+    {
+      name: 'YouTube',
+      handle: '@Estanciaparaisoconcordia',
+      href: 'https://www.youtube.com/@Estanciaparaisoconcordia',
+      cta: 'Ver canal',
+      bg: 'bg-[#FF0000]',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M23 7s-.2-1.5-.9-2.2c-.8-.9-1.8-.9-2.2-1C16.8 3.5 12 3.5 12 3.5s-4.8 0-7.9.3c-.4.1-1.4.1-2.2 1C1.2 5.5 1 7 1 7S.8 8.8.8 10.6v1.7C.8 14.1 1 16 1 16s.2 1.5.9 2.2c.8.9 1.9.8 2.4.9 1.7.2 7.7.3 7.7.3s4.8 0 7.9-.3c.4-.1 1.4-.1 2.2-1 .7-.7.9-2.2.9-2.2s.2-1.8.2-3.6v-1.7C23.2 8.8 23 7 23 7zM9.7 14.4V8L16 11.2l-6.3 3.2z"/></svg>
+      ),
+    },
+  ];
 
   return (
     <section id="contacto" className="relative bg-earth-800 text-cream-100 py-24 lg:py-32">
       <div className="max-w-7xl mx-auto px-6 lg:px-10 grid grid-cols-1 lg:grid-cols-12 gap-12">
-        <div className="lg:col-span-6">
+        <div className="lg:col-span-5">
           <div className="flex items-center gap-3 text-cream-200/70">
             <span className="h-px w-10 bg-cream-200/40" />
-            <span className="text-[10px] tracking-[0.3em] uppercase">06 · Reservá tu visita</span>
+            <span className="text-[10px] tracking-[0.3em] uppercase">06 · Hablemos</span>
           </div>
           <h2 className="font-display mt-6 text-5xl md:text-6xl text-cream-50 leading-[1.05]">
             Vení a caminar el lote.<br/>
             <span className="font-display-italic text-cream-200">El paisaje convence solo.</span>
           </h2>
           <p className="mt-6 text-cream-100/80 max-w-md leading-relaxed">
-            Coordinamos visitas guiadas los sábados. Te buscamos en el último cruce de ruta
-            y volvés con la decisión tomada (o no, no hay apuro).
+            Coordinamos visitas guiadas los sábados. Escribinos por WhatsApp o redes
+            y arreglamos el día y la hora. Sin formularios, sin demoras.
           </p>
           <div className="mt-10 space-y-3 text-sm">
-            <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-20">Tel.</span>(0345) 422-7683</div>
-            <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-20">Email</span>info@estanciaparaiso.com.ar</div>
-            <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-20">Ubicación</span>Estancia Grande · Concordia · Entre Ríos</div>
-            <div className="flex items-center gap-3 pt-3">
-              <a href="https://www.instagram.com/estancia_paraiso_/" target="_blank" rel="noopener" className="link-underline text-cream-100">Instagram</a>
-              <span className="text-cream-200/40">·</span>
-              <a href="https://www.facebook.com/Estancia-Paraiso-131428373990355/" target="_blank" rel="noopener" className="link-underline text-cream-100">Facebook</a>
-              <span className="text-cream-200/40">·</span>
-              <a href="https://www.youtube.com/@Estanciaparaisoconcordia" target="_blank" rel="noopener" className="link-underline text-cream-100">YouTube</a>
-            </div>
+            <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-24">Ubicación</span>Estancia Grande · Concordia · Entre Ríos</div>
+            <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-24">Horarios</span>Lun – Vie 9 a 18hs · Sáb con cita</div>
+            <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-24">Pagos</span>Pesos · USDT · BTC</div>
           </div>
         </div>
 
-        <div className="lg:col-span-6">
-          <form onSubmit={submit} className="bg-cream-50 text-earth-800 rounded-md p-8 lg:p-10">
-            {!sent ? (
-              <>
-                <div className="font-display text-3xl text-earth-800">Coordinemos.</div>
-                <p className="mt-2 text-earth-700/70 text-sm">Te respondemos en el día.</p>
-                <div className="mt-8 space-y-5">
-                  <label className="block">
-                    <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">Nombre</div>
-                    <input
-                      required
-                      value={form.nombre}
-                      onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                      className="w-full mt-2 border-b border-earth-700/30 bg-transparent py-2 outline-none focus:border-earth-700 transition-colors text-earth-800"
-                    />
-                  </label>
-                  <label className="block">
-                    <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">Email</div>
-                    <input
-                      required type="email"
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      className="w-full mt-2 border-b border-earth-700/30 bg-transparent py-2 outline-none focus:border-earth-700 transition-colors text-earth-800"
-                    />
-                  </label>
-                  <label className="block">
-                    <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">Mensaje</div>
-                    <textarea
-                      rows="3"
-                      value={form.mensaje}
-                      onChange={(e) => setForm({ ...form, mensaje: e.target.value })}
-                      className="w-full mt-2 border-b border-earth-700/30 bg-transparent py-2 outline-none focus:border-earth-700 transition-colors text-earth-800 resize-none"
-                      placeholder="Qué plan te interesa, cuándo querrías visitar…"
-                    />
-                  </label>
+        <div className="lg:col-span-7">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {channels.map((c) => (
+              <a
+                key={c.name}
+                href={c.href}
+                target={c.href.startsWith('http') ? '_blank' : undefined}
+                rel="noopener"
+                className="group relative bg-cream-50 text-earth-800 rounded-md p-6 flex items-start gap-4 hover:-translate-y-0.5 transition-transform duration-300 border border-cream-50"
+              >
+                <div className={`w-12 h-12 rounded-full ${c.bg} text-cream-50 flex items-center justify-center shrink-0`}>
+                  {c.icon}
                 </div>
-                <button type="submit" className="mt-8 w-full inline-flex items-center justify-center gap-2 rounded-full bg-earth-700 text-cream-50 px-6 py-3 text-sm hover:bg-earth-800 transition-colors">
-                  Enviar consulta
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </button>
-              </>
-            ) : (
-              <div className="py-10 text-center">
-                <div className="font-display text-3xl text-earth-800">Gracias, {form.nombre || 'amigo'}.</div>
-                <p className="mt-3 text-earth-700/70">Te escribimos a <span className="text-earth-800">{form.email}</span> en las próximas horas.</p>
-                <button onClick={() => { setSent(false); setForm({nombre:'',email:'',mensaje:''}); }} className="mt-6 text-sm link-underline text-earth-700">Enviar otra consulta</button>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">{c.name}</div>
+                  <div className="font-display text-2xl text-earth-800 mt-1 leading-tight truncate">{c.handle}</div>
+                  <div className="mt-3 inline-flex items-center gap-1.5 text-xs text-earth-700 link-underline">
+                    {c.cta}
+                    <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                </div>
+              </a>
+            ))}
+            <a
+              href="https://estanciaparaiso.com.ar/tour-360/"
+              target="_blank"
+              rel="noopener"
+              className="md:col-span-2 group relative bg-earth-700 text-cream-50 rounded-md p-6 flex items-center gap-4 hover:bg-earth-800 transition-colors"
+            >
+              <div className="w-12 h-12 rounded-full bg-cream-50/15 flex items-center justify-center shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
               </div>
-            )}
-          </form>
+              <div className="flex-1">
+                <div className="text-[10px] tracking-[0.3em] uppercase text-cream-200/70">Recorrido virtual</div>
+                <div className="font-display text-2xl text-cream-50 mt-1 leading-tight">Tour 360° por la estancia</div>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </a>
+          </div>
         </div>
       </div>
 
@@ -674,17 +849,123 @@ function Contacto() {
 }
 
 /* ─────────────────────── APP ─────────────────────── */
+/* ─────────────────────── TWEAKS ─────────────────────── */
+const MOODS = [
+  { key: 'tierra',    label: 'Tierra cálida', swatches: ['#4A3826', '#F5EEDF', '#6E7656'], hint: 'Cremas, marrón profundo y verde sauce.' },
+  { key: 'atardecer', label: 'Atardecer',     swatches: ['#4F261F', '#F7E8D5', '#E06E40'], hint: 'Terracotas tibios, cobre y rosa palo.' },
+  { key: 'bosque',    label: 'Bosque',        swatches: ['#252F18', '#EBE9D7', '#647254'], hint: 'Musgo, oliva y cremas fríos.' },
+  { key: 'bruma',     label: 'Bruma',         swatches: ['#2F2F29', '#E8E5DB', '#646E5C'], hint: 'Piedra caliza, sage seco y carbón.' },
+];
+
+const TYPES = [
+  { value: 'editorial', label: 'Editorial' },
+  { value: 'boutique',  label: 'Boutique' },
+  { value: 'austera',   label: 'Austera' },
+];
+
+const RHYTHMS = [
+  { value: 'compacto',    label: 'Compacto' },
+  { value: 'holgado',     label: 'Holgado' },
+  { value: 'cinemascope', label: 'Cinemascope' },
+];
+
+function MoodPicker({ value, onChange }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+      {MOODS.map((m) => {
+        const active = value === m.key;
+        return (
+          <button
+            key={m.key}
+            type="button"
+            onClick={() => onChange(m.key)}
+            title={m.hint}
+            style={{
+              appearance: 'none',
+              padding: '7px 8px',
+              border: active ? '1px solid rgba(0,0,0,0.55)' : '0.5px solid rgba(0,0,0,0.12)',
+              boxShadow: active
+                ? '0 0 0 2px rgba(255,255,255,0.9) inset, 0 1px 6px rgba(0,0,0,0.10)'
+                : '0 1px 0 rgba(255,255,255,0.5) inset',
+              borderRadius: 8,
+              background: 'rgba(255,255,255,0.55)',
+              color: '#29261b',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            }}
+          >
+            <div style={{ display: 'flex', gap: 3 }}>
+              {m.swatches.map((s, i) => (
+                <span
+                  key={i}
+                  style={{
+                    width: '100%', height: 18, borderRadius: 4,
+                    background: s, border: '0.5px solid rgba(0,0,0,0.08)',
+                  }}
+                />
+              ))}
+            </div>
+            <span style={{ fontSize: 10.5, fontWeight: 500 }}>{m.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Tweaks() {
+  const defaults = (typeof window !== 'undefined' && window.TWEAK_DEFAULTS)
+    || { mood: 'tierra', type: 'editorial', rhythm: 'holgado' };
+  const [t, setTweak] = useTweaks(defaults);
+
+  React.useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.mood = t.mood || 'tierra';
+    root.dataset.type = t.type || 'editorial';
+    root.dataset.rhythm = t.rhythm || 'holgado';
+  }, [t.mood, t.type, t.rhythm]);
+
+  return (
+    <TweaksPanel>
+      <TweakSection label="Atmósfera" />
+      <MoodPicker value={t.mood} onChange={(v) => setTweak('mood', v)} />
+
+      <TweakSection label="Tipografía de display" />
+      <TweakRadio
+        label="Familia"
+        value={t.type}
+        options={TYPES}
+        onChange={(v) => setTweak('type', v)}
+      />
+
+      <TweakSection label="Ritmo editorial" />
+      <TweakRadio
+        label="Composición"
+        value={t.rhythm}
+        options={RHYTHMS}
+        onChange={(v) => setTweak('rhythm', v)}
+      />
+    </TweaksPanel>
+  );
+}
+
 function App() {
   return (
     <>
+      <PromoBar />
       <Nav />
       <Hero />
+      <Promocion />
       <ElLugar />
       <LaOportunidad />
       <Calculator />
       <Planes />
       <Gallery />
       <Contacto />
+      <Tweaks />
     </>
   );
 }
