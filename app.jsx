@@ -1,1760 +1,969 @@
-// ─── Estancia Paraíso — Lomas del Arroyo · Landing Page ───────────────────
-// Self-contained React artifact with all helpers, design tokens, and sections
+// Main application — Lomas del Arroyo landing page
 
-import { useState, useEffect, useRef } from "react";
+const { useState, useMemo, useEffect } = React;
 
-// ─── CONSTANTS ──────────────────────────────────────────────────────────────
 const PRICE_ARS = 21_000_000;
 const PRICE_USD = 15_000;
 const DEFAULT_ENTREGA = 6_000_000;
 const MIN_ENTREGA = 5_000_000;
 const MAX_ENTREGA = 12_000_000;
-const CURRENT_MONTH = new Date().getMonth(); // 0-based; 4=mayo, 5=junio
+const STOCK_LOTES = 15;
 
-// ─── HELPERS ────────────────────────────────────────────────────────────────
-const fmt = new Intl.NumberFormat("es-AR", {
-  style: "currency",
-  currency: "ARS",
-  maximumFractionDigits: 0,
-});
-const ARS = (n) => fmt.format(n);
+// Promo: 20% mayo / 10% junio (sólo pago contado en pesos)
+const PROMOS = {
+  mayo: { key: 'mayo', pct: 20, label: 'Mayo', note: '20% OFF · hasta el 31 de mayo' },
+  junio: { key: 'junio', pct: 10, label: 'Junio', note: '10% OFF · hasta el 30 de junio' },
+  sin: { key: 'sin', pct: 0, label: 'Lista', note: 'Precio de lista' }
+};
+const CURRENT_MONTH = new Date().getMonth();
+const DEFAULT_PROMO = CURRENT_MONTH === 5 ? 'junio' : 'mayo';
 
-// ─── DESIGN TOKENS (injected as <style>) ────────────────────────────────────
-const GLOBAL_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --c-earth-900: #2B1F10;
-    --c-earth-800: #3D2B14;
-    --c-earth-700: #5C3D1E;
-    --c-earth-600: #7A5230;
-    --c-earth-500: #9A6E4A;
-    --c-earth-400: #B8906E;
-    --c-cream-50:  #FDFAF4;
-    --c-cream-100: #F5EDD8;
-    --c-cream-200: #EBD9B8;
-    --c-sage-700:  #4A5540;
-    --c-sage-600:  #5E6E52;
-    --c-sage-400:  #8E9E82;
-    --c-terra:     #C4522A;
-    --c-terra-lt:  #E87A52;
-    --font-display: 'Playfair Display', Georgia, serif;
-    --font-body: 'DM Sans', system-ui, sans-serif;
-    --font-lora: 'Lora', Georgia, serif;
-    --radius: 6px;
-    --radius-lg: 10px;
-    --max-w: 1280px;
-    --pad-x: clamp(1.5rem, 5vw, 4rem);
-  }
-
-  html { scroll-behavior: smooth; }
-  body {
-    font-family: var(--font-body);
-    background: var(--c-cream-50);
-    color: var(--c-earth-800);
-    line-height: 1.65;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  /* Marquee */
-  @keyframes marquee {
-    from { transform: translateX(0); }
-    to   { transform: translateX(-33.333%); }
-  }
-
-  /* Fade-rise */
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(24px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  .rise { animation: rise 0.7s ease both; }
-  .rise-2 { animation: rise 0.7s 0.15s ease both; }
-  .rise-3 { animation: rise 0.7s 0.3s ease both; }
-
-  /* Pulse dot */
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-  .pulse { animation: pulse-dot 2s ease-in-out infinite; }
-
-  /* Section divider */
-  .hairline { border: none; border-top: 1px solid rgba(92,61,30,0.12); }
-
-  /* Link underline effect */
-  .link {
-    position: relative;
-    text-decoration: none;
-    color: inherit;
-  }
-  .link::after {
-    content: '';
-    position: absolute;
-    bottom: -2px; left: 0;
-    width: 0; height: 1px;
-    background: currentColor;
-    transition: width 0.25s ease;
-  }
-  .link:hover::after { width: 100%; }
-
-  /* Slider */
-  input[type=range] {
-    -webkit-appearance: none;
-    width: 100%;
-    height: 3px;
-    background: linear-gradient(to right, var(--c-earth-700) var(--pct, 50%), rgba(92,61,30,0.2) var(--pct, 50%));
-    border-radius: 2px;
-    outline: none;
-  }
-  input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 20px; height: 20px;
-    background: var(--c-earth-700);
-    border-radius: 50%;
-    border: 2px solid var(--c-cream-50);
-    box-shadow: 0 1px 6px rgba(0,0,0,0.25);
-    cursor: pointer;
-  }
-
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--c-earth-400); border-radius: 3px; }
-`;
-
-// ─── SMALL SHARED COMPONENTS ────────────────────────────────────────────────
-
-function BrandMark({ size = 28 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <circle cx="16" cy="16" r="15" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M8 20 C8 20 10 10 16 10 C22 10 24 20 24 20" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none" />
-      <path d="M12 20 C12 20 13 15 16 15 C19 15 20 20 20 20" stroke="currentColor" strokeWidth="1" strokeLinecap="round" fill="none" />
-    </svg>
-  );
-}
-
-function CTA({ children, href, dark = true, small = false, ...rest }) {
-  const base = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    borderRadius: 999,
-    padding: small ? "9px 20px" : "12px 28px",
-    fontSize: small ? 12 : 14,
-    fontWeight: 500,
-    letterSpacing: "0.04em",
-    textDecoration: "none",
-    transition: "all 0.2s",
-    whiteSpace: "nowrap",
-    cursor: "pointer",
-    border: "none",
-  };
-  const darkStyle = { background: "var(--c-earth-700)", color: "var(--c-cream-50)" };
-  const lightStyle = {
-    background: "transparent",
-    color: "var(--c-earth-700)",
-    boxShadow: "inset 0 0 0 1.5px var(--c-earth-700)",
-  };
-  return (
-    <a href={href} style={{ ...base, ...(dark ? darkStyle : lightStyle) }} {...rest}>
-      {children}
-      <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-        <path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </a>
-  );
-}
-
-function Kicker({ children }) {
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 12,
-      fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase",
-      color: "var(--c-earth-500)", fontWeight: 500,
-    }}>
-      <span style={{ height: 1, width: 32, background: "var(--c-earth-400)" }} />
-      {children}
-    </div>
-  );
-}
-
-function SectionHeader({ kicker, title, lead }) {
-  return (
-    <div style={{ maxWidth: 720 }}>
-      <Kicker>{kicker}</Kicker>
-      <h2 style={{
-        fontFamily: "var(--font-display)",
-        fontSize: "clamp(2rem, 4vw, 3.2rem)",
-        fontWeight: 400,
-        lineHeight: 1.1,
-        color: "var(--c-earth-800)",
-        marginTop: 20,
-        letterSpacing: "-0.02em",
-      }}>{title}</h2>
-      {lead && (
-        <p style={{
-          marginTop: 16,
-          fontSize: 17,
-          color: "var(--c-earth-600)",
-          lineHeight: 1.7,
-          maxWidth: 580,
-        }}>{lead}</p>
-      )}
-    </div>
-  );
-}
-
-function Stat({ value, label, sub }) {
-  return (
-    <div>
-      <div style={{
-        fontFamily: "var(--font-display)",
-        fontSize: "clamp(2rem, 3.5vw, 2.8rem)",
-        fontWeight: 400,
-        color: "var(--c-earth-800)",
-        lineHeight: 1,
-      }}>{value}</div>
-      <div style={{
-        marginTop: 8,
-        fontSize: 13,
-        fontWeight: 500,
-        color: "var(--c-earth-700)",
-      }}>{label}</div>
-      <div style={{
-        marginTop: 4,
-        fontSize: 12,
-        color: "var(--c-earth-500)",
-        letterSpacing: "0.05em",
-      }}>{sub}</div>
-    </div>
-  );
-}
-
-function Tag({ children }) {
-  return (
-    <span style={{
-      display: "inline-block",
-      padding: "4px 12px",
-      borderRadius: 999,
-      background: "rgba(235,224,200,0.2)",
-      color: "var(--c-cream-200)",
-      fontSize: 11,
-      letterSpacing: "0.2em",
-      textTransform: "uppercase",
-      fontWeight: 500,
-    }}>{children}</span>
-  );
-}
-
-// ─── PROMO BAR ───────────────────────────────────────────────────────────────
+/* ─────────────────────── NAV ─────────────────────── */
 function PromoBar() {
   const items = [
-    "La Era del Peso · Edición 2026",
-    "20% OFF en mayo · pago contado en pesos",
-    "10% OFF en junio · pago contado en pesos",
-    "Solo 15 lotes con esta financiación",
-    "Financiación única en pesos · hasta 48 meses",
-    "Aceptamos criptomonedas · USDT · BTC",
-  ];
+  'La Era del Peso · Edición 2026',
+  '20% OFF en mayo · pago contado en pesos',
+  '10% OFF en junio · pago contado en pesos',
+  'Solo 15 lotes con esta financiación',
+  'Financiación única en pesos · hasta 48 meses',
+  'Aceptamos criptomonedas · USDT · BTC'];
+
   return (
-    <div style={{
-      background: "var(--c-earth-800)",
-      color: "var(--c-cream-100)",
-      overflow: "hidden",
-      borderBottom: "1px solid rgba(255,255,255,0.06)",
-      position: "relative",
-      zIndex: 50,
-    }}>
-      <div style={{
-        display: "flex",
-        whiteSpace: "nowrap",
-        animation: "marquee 44s linear infinite",
-        width: "max-content",
-        paddingTop: 10,
-        paddingBottom: 10,
-      }}>
-        {[...items, ...items, ...items].map((t, i) => (
-          <span key={i} style={{
-            padding: "0 24px",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 10,
-            fontSize: 10,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-          }}>
-            <span style={{
-              width: 5, height: 5, borderRadius: "50%",
-              background: "var(--c-terra)",
-              display: "inline-block",
-            }} />
+    <div className="relative z-50 bg-earth-800 text-cream-100 overflow-hidden border-b border-earth-800">
+      <div className="flex whitespace-nowrap py-2.5" style={{ animation: 'marquee 42s linear infinite', width: 'max-content' }}>
+        {[...items, ...items, ...items].map((t, i) =>
+        <span key={i} className="px-6 flex items-center gap-3 tracking-[0.15em] uppercase text-[10px]">
+            <span className="h-1 w-1 rounded-full bg-terracotta" />
             {t}
           </span>
-        ))}
+        )}
       </div>
-    </div>
-  );
+      <style>{`@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-33.333%); } }`}</style>
+    </div>);
+
 }
 
-// ─── NAV ────────────────────────────────────────────────────────────────────
 function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
-    <header style={{
-      position: "sticky",
-      top: 0,
-      zIndex: 40,
-      background: scrolled ? "rgba(253,250,244,0.88)" : "rgba(253,250,244,0.7)",
-      backdropFilter: "blur(12px)",
-      borderBottom: "1px solid rgba(92,61,30,0.08)",
-      transition: "background 0.3s",
-    }}>
-      <div style={{
-        maxWidth: "var(--max-w)",
-        margin: "0 auto",
-        padding: "0 var(--pad-x)",
-        height: 68,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 24,
-      }}>
-        <a href="#" style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          color: "var(--c-earth-800)",
-          textDecoration: "none",
-        }}>
-          <BrandMark size={30} />
-          <div>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: 18, lineHeight: 1.2 }}>
-              Estancia Paraíso
-            </div>
-            <div style={{
-              fontSize: 9,
-              letterSpacing: "0.32em",
-              textTransform: "uppercase",
-              color: "var(--c-earth-500)",
-              marginTop: 1,
-            }}>Urbanización sustentable</div>
+    <header className="sticky top-0 z-40 backdrop-blur-md bg-cream-100/70 border-b border-earth-700/10">
+      <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
+        <a href="#" className="flex items-center gap-3 text-earth-800">
+          <BrandMark size={28} />
+          <div className="leading-tight">
+            <div className="font-display text-lg">Estancia Paraíso</div>
+            <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600 -mt-0.5">Urbanización sustentable</div>
           </div>
         </a>
-
-        <nav style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 32,
-          fontSize: 14,
-          color: "var(--c-earth-600)",
-        }}>
-          {[
-            { label: "El lugar", href: "#lugar" },
-            { label: "Promo Mayo", href: "#promo", accent: true },
-            { label: "Calculadora", href: "#calculadora" },
-            { label: "Planes", href: "#planes" },
-          ].map(({ label, href, accent }) => (
-            <a
-              key={href}
-              href={href}
-              className="link"
-              style={{
-                color: accent ? "var(--c-terra)" : "var(--c-earth-600)",
-                fontWeight: accent ? 500 : 400,
-              }}
-            >{label}</a>
-          ))}
+        <nav className="hidden md:flex items-center gap-9 text-sm text-earth-700">
+          <a href="#lugar" className="link-underline">El lugar</a>
+          <a href="#promo" className="link-underline text-terracotta">Promo Mayo</a>
+          <a href="#calculadora" className="link-underline">Calculadora</a>
+          <a href="#planes" className="link-underline">Planes</a>
         </nav>
-
-        <CTA href="#contacto" small>Reservar visita</CTA>
+        <CTA dark={false} as="a" href="#contacto">Reservar visita</CTA>
       </div>
-    </header>
-  );
+    </header>);
+
 }
 
-// ─── HERO ────────────────────────────────────────────────────────────────────
+/* ─────────────────────── HERO ─────────────────────── */
 function Hero() {
   return (
-    <section style={{ position: "relative" }}>
-      <div style={{
-        maxWidth: "var(--max-w)",
-        margin: "0 auto",
-        padding: "clamp(3rem, 6vw, 6rem) var(--pad-x) 3rem",
-        display: "grid",
-        gridTemplateColumns: "1fr min(40%, 480px)",
-        gap: "clamp(2rem, 5vw, 5rem)",
-        alignItems: "end",
-      }}>
-        <div className="rise">
-          <Kicker>Estancia Grande · Concordia · Entre Ríos</Kicker>
-          <h1 style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "clamp(3.2rem, 7vw, 7rem)",
-            fontWeight: 400,
-            lineHeight: 0.96,
-            letterSpacing: "-0.03em",
-            color: "var(--c-earth-800)",
-            marginTop: 24,
-          }}>
-            Muchas formas<br />
-            de vivir.<br />
-            <em style={{
-              fontStyle: "italic",
-              color: "var(--c-sage-600)",
-            }}>Una sola respuesta.</em>
-          </h1>
-          <p className="rise-2" style={{
-            marginTop: 28,
-            maxWidth: 520,
-            fontSize: 17,
-            color: "var(--c-earth-600)",
-            lineHeight: 1.75,
-          }}>
-            La calidez de un hogar, el aroma a madera, la brisa fresca, el olor a tierra y el
-            rocío de la mañana. El equilibrio entre el vivir cotidiano y la tranquilidad de la naturaleza.
-          </p>
-          <div className="rise-3" style={{
-            marginTop: 36,
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 12,
-            alignItems: "center",
-          }}>
-            <CTA href="#calculadora">Calcular mi cuota</CTA>
-            <CTA href="#lugar" dark={false}>Conocer el lugar</CTA>
+    <section className="relative">
+      <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-16 lg:pt-24 pb-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
+          <div className="lg:col-span-7 rise-in">
+            <div className="flex items-center gap-3 text-earth-600">
+              <span className="h-px w-10 bg-earth-600/50" />
+              <span className="text-[10px] tracking-[0.3em] uppercase">Estancia Grande · Concordia · Entre Ríos</span>
+            </div>
+            <h1 className="font-display mt-6 text-[64px] md:text-[88px] lg:text-[104px] leading-[0.95] tracking-tight text-earth-800">
+              Muchas formas<br />
+              de vivir.<br />
+              <span className="font-display-italic text-sage-600">Una sola respuesta.</span>
+            </h1>
+            <p className="mt-8 max-w-xl text-lg text-earth-700/80 leading-relaxed">
+              La calidez de un hogar, el aroma a madera, la brisa fresca, el olor a tierra y el rocío de la mañana.
+              El equilibrio entre el vivir cotidiano y la tranquilidad de la naturaleza.
+            </p>
+            <div className="mt-10 flex flex-wrap items-center gap-4">
+              <CTA as="a" href="#calculadora">Calcular mi cuota</CTA>
+              <CTA dark={false} as="a" href="#lugar">Conocer el lugar</CTA>
+            </div>
           </div>
-        </div>
 
-        <div style={{ position: "relative" }} className="rise-2">
-          <img
-            src="https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/laguna-estancia-paraiso-01-1.jpg"
-            alt="Laguna de Estancia Paraíso"
-            style={{
-              width: "100%",
-              aspectRatio: "4/5",
-              objectFit: "cover",
-              borderRadius: "var(--radius-lg)",
-              display: "block",
-            }}
-          />
-          <div style={{
-            position: "absolute",
-            bottom: -24,
-            left: -24,
-            background: "var(--c-cream-50)",
-            border: "1px solid rgba(92,61,30,0.12)",
-            borderRadius: "var(--radius-lg)",
-            padding: "20px 24px",
-            boxShadow: "0 8px 32px -16px rgba(61,43,20,0.35)",
-            maxWidth: 230,
-          }}>
-            <div style={{ fontSize: 9, letterSpacing: "0.32em", textTransform: "uppercase", color: "var(--c-earth-500)" }}>
-              Desde
-            </div>
-            <div style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "2.2rem",
-              color: "var(--c-earth-800)",
-              lineHeight: 1.1,
-              marginTop: 4,
-            }}>USD 15.000</div>
-            <div style={{ fontSize: 13, color: "var(--c-earth-600)", marginTop: 4 }}>
-              o {ARS(PRICE_ARS)} en pesos
-            </div>
-            <hr className="hairline" style={{ margin: "12px 0 8px" }} />
-            <div style={{ fontSize: 11, color: "var(--c-earth-500)" }}>
-              Financiación propia hasta 48 meses
+          <div className="lg:col-span-5">
+            <div className="relative">
+              <img
+                src="https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/laguna-estancia-paraiso-01-1.jpg"
+                alt="Laguna de Estancia Paraíso"
+                className="w-full h-full object-cover rounded-md"
+                style={{ aspectRatio: '4/5', display: 'block' }} />
+              
+              <div className="absolute -bottom-6 -left-6 bg-cream-50 border border-earth-700/15 rounded-md p-5 shadow-[0_10px_40px_-20px_rgba(74,56,38,0.4)] max-w-[240px]">
+                <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">Desde</div>
+                <div className="font-display text-4xl text-earth-800 mt-1">USD 15.000</div>
+                <div className="text-sm text-earth-700/80 mt-1">o {ARS(PRICE_ARS)} en pesos</div>
+                <div className="hairline mt-3 pt-3 text-xs text-earth-700/70">Financiación propia hasta 48 meses</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Stats strip */}
-      <div style={{
-        borderTop: "1px solid rgba(92,61,30,0.1)",
-        borderBottom: "1px solid rgba(92,61,30,0.1)",
-        background: "rgba(235,217,184,0.18)",
-        marginTop: 40,
-      }}>
-        <div style={{
-          maxWidth: "var(--max-w)",
-          margin: "0 auto",
-          padding: "clamp(2rem, 3vw, 2.5rem) var(--pad-x)",
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "2rem",
-        }}>
+      {/* stats strip */}
+      <div className="border-y border-earth-700/15 bg-cream-50/50">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10 grid grid-cols-2 md:grid-cols-4 gap-y-8 gap-x-6">
           <Stat value="24h" label="Seguridad" sub="Ingreso controlado" />
           <Stat value="48" label="Cuotas máx." sub="Financiación propia" />
           <Stat value="100%" label="Servicios" sub="Luz · agua · caminos" />
           <Stat value="0%" label="Comisión" sub="Compra directa al dueño" />
         </div>
       </div>
-    </section>
-  );
+    </section>);
+
 }
 
-// ─── PROMOCIÓN ──────────────────────────────────────────────────────────────
-function Promocion() {
-  const isMay = CURRENT_MONTH === 4;
-  const activeMonth = CURRENT_MONTH === 5 ? "junio" : "mayo";
-  const precioLista = PRICE_ARS;
-  const precioMayo = Math.round(PRICE_ARS * 0.80);
-  const precioJunio = Math.round(PRICE_ARS * 0.90);
-
-  const card = (month, pct, precio, fecha) => {
-    const isActive = activeMonth === month;
-    return (
-      <div style={{
-        borderRadius: "var(--radius-lg)",
-        padding: "28px 30px",
-        border: "1px solid " + (isActive ? "var(--c-earth-700)" : "rgba(92,61,30,0.14)"),
-        background: isActive ? "var(--c-earth-700)" : "var(--c-cream-50)",
-        color: isActive ? "var(--c-cream-50)" : "var(--c-earth-800)",
-        boxShadow: isActive ? "0 24px 48px -24px rgba(61,43,20,0.45)" : "none",
-      }}>
-        <div style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}>
-          <span style={{
-            fontSize: 10, letterSpacing: "0.32em", textTransform: "uppercase",
-            color: isActive ? "rgba(245,237,223,0.6)" : "var(--c-earth-500)",
-          }}>
-            {month.charAt(0).toUpperCase() + month.slice(1)} 2026
-          </span>
-          <span style={{
-            fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase",
-            padding: "4px 12px", borderRadius: 999,
-            background: isActive ? "rgba(245,237,223,0.15)" : (month === "mayo" ? "rgba(196,82,42,0.12)" : "rgba(92,61,30,0.08)"),
-            color: isActive ? "var(--c-cream-200)" : (month === "mayo" ? "var(--c-terra)" : "var(--c-earth-600)"),
-          }}>
-            {isActive ? "Mes en curso" : (month === "mayo" ? "Cerrado" : "Próximo")}
-          </span>
-        </div>
-        <div style={{ marginTop: 20, display: "flex", alignItems: "baseline", gap: 10 }}>
-          <span style={{ fontFamily: "var(--font-display)", fontSize: "3.8rem", fontWeight: 400, lineHeight: 1 }}>
-            {pct}%
-          </span>
-          <span style={{
-            fontSize: 14,
-            color: isActive ? "rgba(245,237,223,0.7)" : "var(--c-earth-500)",
-          }}>de descuento</span>
-        </div>
-        <div style={{
-          marginTop: 14, fontSize: 14,
-          color: isActive ? "rgba(245,237,223,0.9)" : "var(--c-earth-600)",
-        }}>
-          Precio promocional{" "}
-          <strong style={{
-            color: isActive ? "var(--c-cream-50)" : "var(--c-earth-800)",
-            fontWeight: 500,
-          }}>{ARS(precio)}</strong>{" "}
-          <span style={{
-            textDecoration: "line-through",
-            color: isActive ? "rgba(245,237,223,0.4)" : "rgba(92,61,30,0.4)",
-          }}>{ARS(precioLista)}</span>
-        </div>
-        <div style={{
-          marginTop: 6, fontSize: 11,
-          color: isActive ? "rgba(245,237,223,0.5)" : "var(--c-earth-400)",
-        }}>
-          Pago contado en pesos · hasta el {fecha}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <section id="promo" style={{
-      background: "var(--c-cream-100)",
-      padding: "clamp(4rem, 7vw, 7rem) var(--pad-x)",
-    }}>
-      <div style={{ maxWidth: "var(--max-w)", margin: "0 auto" }}>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr min(44%, 520px)",
-          gap: "clamp(2.5rem, 5vw, 5rem)",
-          alignItems: "start",
-        }}>
-          {/* Left */}
-          <div>
-            <div style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-              background: "var(--c-earth-800)",
-              color: "var(--c-cream-50)",
-              padding: "8px 16px",
-              borderRadius: 999,
-              marginBottom: 24,
-            }}>
-              <span className="pulse" style={{
-                width: 6, height: 6, borderRadius: "50%",
-                background: "var(--c-terra)", display: "inline-block",
-              }} />
-              <span style={{ fontSize: 10, letterSpacing: "0.35em", textTransform: "uppercase", fontWeight: 500 }}>
-                La Era del Peso
-              </span>
-              <span style={{ fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(245,237,223,0.5)" }}>
-                Edición 2026
-              </span>
-            </div>
-
-            <Kicker>Promoción limitada · Mayo & Junio 2026</Kicker>
-
-            <h2 style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "clamp(2.6rem, 4.5vw, 4.5rem)",
-              fontWeight: 400,
-              lineHeight: 1.03,
-              color: "var(--c-earth-800)",
-              marginTop: 20,
-              letterSpacing: "-0.02em",
-            }}>
-              Solo <em style={{ fontStyle: "italic", color: "var(--c-terra)" }}>15 lotes</em><br />
-              con esta financiación.
-            </h2>
-
-            <p style={{
-              marginTop: 20,
-              fontSize: 16,
-              color: "var(--c-earth-600)",
-              lineHeight: 1.75,
-              maxWidth: 500,
-            }}>
-              Una franja única: lista de unidades cerrada, descuentos sólo en mayo y junio para pago
-              contado en pesos, y financiación propia en pesos hasta 48 meses para el resto.{" "}
-              <strong style={{ color: "var(--c-earth-800)", fontWeight: 500 }}>
-                Cuando se cierren las 15, el precio vuelve a lista.
-              </strong>
-            </p>
-
-            {/* Lot counter */}
-            <div style={{ marginTop: 36 }}>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(15, 1fr)",
-                gap: 5,
-                maxWidth: 420,
-              }}>
-                {Array.from({ length: 15 }).map((_, i) => (
-                  <div key={i} style={{
-                    height: 44,
-                    borderRadius: 4,
-                    background: i < 11 ? "var(--c-earth-700)" : "var(--c-cream-200)",
-                    border: i >= 11 ? "1px solid rgba(92,61,30,0.2)" : "none",
-                  }} />
-                ))}
-              </div>
-              <div style={{
-                marginTop: 10,
-                display: "flex",
-                justifyContent: "space-between",
-                maxWidth: 420,
-                fontSize: 12,
-                color: "var(--c-earth-500)",
-              }}>
-                <span>
-                  <strong style={{ color: "var(--c-earth-800)", fontWeight: 500 }}>11 disponibles</strong>
-                  {" "}· 4 reservados
-                </span>
-                <span>Stock al {new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "long" })}</span>
-              </div>
-            </div>
-
-            <div style={{ marginTop: 36, display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
-              <CTA href="#contacto">Reservar mi unidad</CTA>
-              <a href="#calculadora" className="link" style={{
-                fontSize: 14, color: "var(--c-earth-600)",
-              }}>
-                o calcular mi cuota →
-              </a>
-            </div>
-          </div>
-
-          {/* Right: cards */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {card("mayo", 20, precioMayo, "31 de mayo")}
-            {card("junio", 10, precioJunio, "30 de junio")}
-
-            {/* Crypto */}
-            <div style={{
-              borderRadius: "var(--radius-lg)",
-              padding: "20px 24px",
-              border: "1px solid rgba(92,61,30,0.14)",
-              background: "var(--c-cream-50)",
-              display: "flex",
-              alignItems: "center",
-              gap: 18,
-            }}>
-              <div style={{ display: "flex" }}>
-                {[
-                  { bg: "#F7931A", label: "₿", font: 14 },
-                  { bg: "#26A17B", label: "USDT", font: 10 },
-                ].map(({ bg, label, font }, i) => (
-                  <div key={i} style={{
-                    width: 44, height: 44, borderRadius: "50%",
-                    background: bg, color: "#fff",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontWeight: 700, fontSize: font,
-                    border: "2px solid var(--c-cream-50)",
-                    marginLeft: i > 0 ? -10 : 0,
-                    position: "relative", zIndex: 2 - i,
-                  }}>{label}</div>
-                ))}
-              </div>
-              <div>
-                <div style={{ fontSize: 9, letterSpacing: "0.32em", textTransform: "uppercase", color: "var(--c-earth-500)" }}>
-                  También consultar por
-                </div>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 19, color: "var(--c-earth-800)", marginTop: 2 }}>
-                  Pago en criptomonedas
-                </div>
-                <div style={{ fontSize: 12, color: "var(--c-earth-500)", marginTop: 2 }}>
-                  USDT · BTC · Coordinamos al reservar.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── EL LUGAR ────────────────────────────────────────────────────────────────
+/* ─────────────────────── EL LUGAR ─────────────────────── */
 function ElLugar() {
   return (
-    <section id="lugar" style={{
-      padding: "clamp(4rem, 7vw, 8rem) var(--pad-x)",
-    }}>
-      <div style={{ maxWidth: "var(--max-w)", margin: "0 auto" }}>
+    <section id="lugar" className="py-24 lg:py-32">
+      <div className="max-w-7xl mx-auto px-6 lg:px-10">
         <SectionHeader
           kicker="01 · El lugar"
           title="Un espacio pensado para volver a mirar el cielo."
-          lead="Barrio privado en Estancia Grande, sobre la ruta a Concordia, Entre Ríos. Para quienes quieran disfrutar la vida desde lo simple."
-        />
+          lead="Barrio privado en Estancia Grande, sobre la ruta a Concordia, Entre Ríos. Para quienes quieran disfrutar la vida desde lo simple y conectarse profundamente con los sentidos." />
+        
 
-        <div style={{
-          marginTop: 48,
-          display: "grid",
-          gridTemplateColumns: "minmax(0,7fr) minmax(0,5fr)",
-          gap: 20,
-          alignItems: "start",
-        }}>
+        <div className="mt-16 grid grid-cols-1 lg:grid-cols-12 gap-6">
           <img
             src="https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/estancia-paraiso-2022_web.jpg"
-            alt="Vista aérea de Estancia Paraíso"
-            style={{
-              width: "100%", aspectRatio: "16/10",
-              objectFit: "cover", borderRadius: "var(--radius-lg)",
-              display: "block",
-            }}
-          />
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            alt="Estancia Paraíso — vista aérea"
+            className="lg:col-span-7 w-full h-full object-cover rounded-md"
+            style={{ aspectRatio: '16/10', display: 'block' }} />
+          
+          <div className="lg:col-span-5 flex flex-col gap-6">
             <img
               src="https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/Estancia-Paraiso-familias-01.jpg"
               alt="Familias en Estancia Paraíso"
-              style={{
-                width: "100%", aspectRatio: "4/3",
-                objectFit: "cover", borderRadius: "var(--radius-lg)",
-                display: "block",
-              }}
-            />
-            <div style={{
-              background: "var(--c-cream-100)",
-              border: "1px solid rgba(92,61,30,0.12)",
-              borderRadius: "var(--radius-lg)",
-              padding: "24px 28px",
-            }}>
-              <blockquote style={{
-                fontFamily: "var(--font-lora)",
-                fontStyle: "italic",
-                fontSize: "1.15rem",
-                color: "var(--c-earth-800)",
-                lineHeight: 1.6,
-              }}>
+              className="w-full object-cover rounded-md"
+              style={{ aspectRatio: '4/3', display: 'block' }} />
+            
+            <div className="bg-cream-50 border border-earth-700/15 rounded-md p-7">
+              <div className="font-display text-2xl text-earth-800 leading-snug">
                 "La calidez de un hogar, el aroma a madera, la brisa fresca, el olor a tierra y el rocío de la mañana."
-              </blockquote>
-              <div style={{
-                marginTop: 14, fontSize: 11,
-                letterSpacing: "0.2em", textTransform: "uppercase",
-                color: "var(--c-earth-500)",
-              }}>
-                — Estancia Paraíso · Estancia Grande
               </div>
+              <div className="mt-4 text-sm text-earth-600">— Estancia Paraíso · Estancia Grande</div>
             </div>
           </div>
         </div>
 
-        <div style={{
-          marginTop: 64,
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "clamp(1.5rem, 3vw, 3rem)",
-        }}>
+        {/* Features row */}
+        <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-10">
           {[
-            { t: "Energía y agua", d: "Energía eléctrica a pie de lote y red de agua corriente provista al barrio." },
-            { t: "Seguridad 24hs", d: "Cerco perimetral completo, ingreso controlado y vigilancia las 24 horas." },
-            { t: "Accesos", d: "Caminos internos consolidados todo el año y acceso directo desde la ruta." },
-          ].map((f, i) => (
-            <div key={i} style={{
-              borderTop: "1px solid rgba(92,61,30,0.18)",
-              paddingTop: 24,
-            }}>
-              <div style={{
-                fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase",
-                color: "var(--c-earth-500)",
-              }}>0{i + 1}</div>
-              <h3 style={{
-                fontFamily: "var(--font-display)",
-                fontSize: "1.5rem",
-                fontWeight: 400,
-                color: "var(--c-earth-800)",
-                marginTop: 12,
-              }}>{f.t}</h3>
-              <p style={{ marginTop: 10, fontSize: 15, color: "var(--c-earth-600)", lineHeight: 1.7 }}>
-                {f.d}
-              </p>
+          { t: "Energía y agua", d: "Energía eléctrica a pie de lote y red de agua corriente provista al barrio." },
+          { t: "Seguridad 24hs", d: "Cerco perimetral completo, ingreso controlado y vigilancia las 24 horas." },
+          { t: "Accesos", d: "Caminos internos consolidados todo el año y acceso directo desde la ruta." }].
+          map((f, i) =>
+          <div key={i} className="border-t border-earth-700/20 pt-6">
+              <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">0{i + 1}</div>
+              <h3 className="font-display text-2xl text-earth-800 mt-3">{f.t}</h3>
+              <p className="mt-3 text-earth-700/80 leading-relaxed">{f.d}</p>
             </div>
-          ))}
+          )}
         </div>
       </div>
-    </section>
-  );
+    </section>);
+
 }
 
-// ─── LA OPORTUNIDAD ──────────────────────────────────────────────────────────
+/* ─────────────────────── LA OPORTUNIDAD ─────────────────────── */
 function LaOportunidad() {
   return (
-    <section id="inversion" style={{
-      background: "var(--c-earth-700)",
-      color: "var(--c-cream-100)",
-      padding: "clamp(4rem, 7vw, 8rem) var(--pad-x)",
-      position: "relative",
-    }}>
-      <div style={{ maxWidth: "var(--max-w)", margin: "0 auto" }}>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "min(42%, 440px) 1fr",
-          gap: "clamp(2.5rem, 5vw, 5rem)",
-          alignItems: "center",
-        }}>
-          <img
-            src="https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/Estancia-Paraiso-familias-08.jpg"
-            alt="Atardecer en Estancia Paraíso"
-            style={{
-              width: "100%", aspectRatio: "4/5",
-              objectFit: "cover", borderRadius: "var(--radius-lg)",
-              display: "block",
-            }}
-          />
-          <div>
-            <Kicker style={{ color: "rgba(245,237,223,0.5)" }}>
-              <span style={{ color: "rgba(245,237,223,0.5)", fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase" }}>
-                02 · La oportunidad
-              </span>
-            </Kicker>
-            <h2 style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "clamp(2.2rem, 4vw, 3.8rem)",
-              fontWeight: 400,
-              lineHeight: 1.08,
-              color: "var(--c-cream-50)",
-              marginTop: 20,
-              letterSpacing: "-0.02em",
-            }}>
-              La tierra es la única<br />
-              inversión que{" "}
-              <em style={{ fontStyle: "italic", color: "var(--c-cream-200)" }}>
-                no se devalúa cuando llueve
-              </em>.
+    <section id="inversion" className="relative py-24 lg:py-32 bg-earth-700 text-cream-100 overflow-hidden">
+      {/* decorative line */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-cream-200/15" />
+      <div className="max-w-7xl mx-auto px-6 lg:px-10 relative">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          <div className="lg:col-span-5">
+            <img
+              src="https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/Estancia-Paraiso-familias-08.jpg"
+              alt="Atardecer en Estancia Paraíso"
+              className="w-full object-cover rounded-md"
+              style={{ aspectRatio: '4/5', display: 'block' }} />
+            
+          </div>
+          <div className="lg:col-span-7">
+            <div className="flex items-center gap-3 text-cream-200/70">
+              <span className="h-px w-10 bg-cream-200/40" />
+              <span className="text-[10px] tracking-[0.3em] uppercase">02 · La oportunidad</span>
+            </div>
+            <h2 className="font-display mt-6 text-4xl md:text-6xl leading-[1.05] text-cream-50">
+              La tierra es la única<br />inversión que <span className="font-display-italic text-cream-200">no se devalúa cuando llueve</span>.
             </h2>
-
-            <div style={{
-              marginTop: 28,
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "16px 40px",
-              fontSize: 15,
-              color: "rgba(245,237,223,0.8)",
-              lineHeight: 1.7,
-            }}>
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-5 text-cream-100/85 leading-relaxed">
               <p>
                 Comprás directamente al dueño, sin intermediarios, sin comisiones,
                 sin sorpresas. Reservás el lote con la entrega y firmás boleto el mismo día.
               </p>
               <p>
-                El valor del suelo en zonas rurales creció en promedio un{" "}
-                <strong style={{ color: "var(--c-cream-50)", fontWeight: 500 }}>38% anual en dólares</strong>{" "}
-                los últimos cinco años. Estancia Paraíso está en la franja inicial de ese ciclo.
+                El valor del suelo en zonas rurales productivas creció en promedio
+                un <span className="text-cream-50 font-medium">38% anual en dólares</span> los últimos
+                cinco años. Estancia Paraíso está en la franja inicial de ese ciclo.
               </p>
             </div>
 
-            <div style={{
-              marginTop: 44,
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "2rem",
-            }}>
-              {[
-                { v: "+38%", l: "Valorización anual en USD (2020–25)" },
-                { v: "12×", l: "Cuotas fijas en pesos" },
-                { v: "48m", l: "Plazo máximo ajustado IPC" },
-                { v: "0%", l: "Interés bancario — financiación propia" },
-              ].map(({ v, l }) => (
-                <div key={v}>
-                  <div style={{
-                    fontFamily: "var(--font-display)",
-                    fontSize: "2.4rem",
-                    fontWeight: 400,
-                    color: "var(--c-cream-50)",
-                    lineHeight: 1,
-                  }}>{v}</div>
-                  <div style={{
-                    marginTop: 8, fontSize: 10,
-                    letterSpacing: "0.2em", textTransform: "uppercase",
-                    color: "rgba(245,237,223,0.5)",
-                    lineHeight: 1.5,
-                  }}>{l}</div>
-                </div>
-              ))}
+            <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-y-8">
+              <div>
+                <div className="font-display text-4xl text-cream-50">+38%</div>
+                <div className="text-[10px] tracking-[0.3em] uppercase mt-2 text-cream-200/70">Valorización anual<br />en USD (2020–25)</div>
+              </div>
+              <div>
+                <div className="font-display text-4xl text-cream-50">12×</div>
+                <div className="text-[10px] tracking-[0.3em] uppercase mt-2 text-cream-200/70">Cuotas fijas<br />en pesos</div>
+              </div>
+              <div>
+                <div className="font-display text-4xl text-cream-50">48m</div>
+                <div className="text-[10px] tracking-[0.3em] uppercase mt-2 text-cream-200/70">Plazo máximo<br />ajustado IPC</div>
+              </div>
+              <div>
+                <div className="font-display text-4xl text-cream-50">0%</div>
+                <div className="text-[10px] tracking-[0.3em] uppercase mt-2 text-cream-200/70">Interés bancario<br />financiación propia</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </section>
-  );
+    </section>);
+
 }
 
-// ─── CALCULATOR ─────────────────────────────────────────────────────────────
+/* ─────────────────────── PROMOCIÓN ─────────────────────── */
+function Promocion() {
+  const isMay = CURRENT_MONTH === 4;
+  const isJun = CURRENT_MONTH === 5;
+  const activeMonth = isJun ? 'junio' : 'mayo';
+  const activePct = PROMOS[activeMonth].pct;
+
+  const precioLista = PRICE_ARS;
+  const precioMayo = Math.round(PRICE_ARS * 0.80);
+  const precioJunio = Math.round(PRICE_ARS * 0.90);
+
+  return (
+    <section id="promo" className="relative py-20 lg:py-28 bg-cream-100">
+      <div className="max-w-7xl mx-auto px-6 lg:px-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
+          {/* LEFT — headline + lot counter */}
+          <div className="lg:col-span-7">
+            {/* Slogan eyebrow */}
+            <div className="inline-flex items-center gap-3 mb-6 bg-earth-800 text-cream-50 pl-3 pr-4 py-2 rounded-full">
+              <span className="h-1.5 w-1.5 rounded-full bg-terracotta animate-pulse" />
+              <span className="text-[10px] tracking-[0.35em] uppercase font-medium">La Era del Peso</span>
+              <span className="text-[10px] tracking-[0.2em] uppercase text-cream-200/60">Edición 2026</span>
+            </div>
+
+            <div className="flex items-center gap-3 text-terracotta">
+              <span className="h-px w-10 bg-terracotta/60" />
+              <span className="text-[10px] tracking-[0.3em] uppercase">Promoción limitada · Mayo & Junio 2026</span>
+            </div>
+            <h2 className="font-display mt-6 text-5xl md:text-6xl lg:text-7xl leading-[1.02] text-earth-800">
+              Solo <span className="font-display-italic text-terracotta">15 lotes</span><br />
+              con esta financiación.
+            </h2>
+            <p className="mt-6 text-earth-700/80 text-lg max-w-xl leading-relaxed">
+              Una franja única: lista de unidades cerrada, descuentos sólo en mayo y junio para pago
+              contado en pesos, y financiación propia en pesos hasta 48 meses para el resto.
+              <span className="block mt-2 text-earth-800">Cuando se cierren las 15, el precio vuelve a lista.</span>
+            </p>
+
+            {/* lot counter — 15 unidades */}
+            <div className="mt-10 grid gap-1.5 max-w-md" style={{ gridTemplateColumns: 'repeat(15, 1fr)' }}>
+              {Array.from({ length: 15 }).map((_, i) =>
+              <div
+                key={i}
+                className={`h-12 rounded-sm ${i < 11 ? 'bg-earth-700' : 'bg-cream-200 border border-earth-700/20'}`}
+                title={i < 11 ? 'Disponible' : 'Reservado'} />
+
+              )}
+            </div>
+            <div className="mt-3 flex items-center justify-between max-w-md text-xs text-earth-700/70">
+              <span><span className="text-earth-800 font-medium">11 disponibles</span> · 4 reservados</span>
+              <span>Stock al {new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long' })}</span>
+            </div>
+
+            <div className="mt-10 flex flex-wrap items-center gap-3">
+              <CTA as="a" href="#contacto">Reservar mi unidad</CTA>
+              <a href="#calculadora" className="text-sm text-earth-700 link-underline">o calcular mi cuota →</a>
+            </div>
+          </div>
+
+          {/* RIGHT — two month cards */}
+          <div className="lg:col-span-5 flex flex-col gap-4">
+            <div className={`rounded-md p-7 border ${activeMonth === 'mayo' ? 'bg-earth-700 text-cream-50 border-earth-700 shadow-[0_30px_60px_-40px_rgba(74,56,38,0.6)]' : 'bg-cream-50 text-earth-800 border-earth-700/15'}`}>
+              <div className="flex items-center justify-between">
+                <div className={`text-[10px] tracking-[0.3em] uppercase ${activeMonth === 'mayo' ? 'text-cream-200/70' : 'text-earth-600'}`}>Mayo 2026</div>
+                <span className={`text-[10px] tracking-[0.2em] uppercase px-2.5 py-1 rounded-full ${activeMonth === 'mayo' ? 'bg-cream-50/15 text-cream-100' : 'bg-terracotta/15 text-terracotta'}`}>
+                  {activeMonth === 'mayo' ? 'Mes en curso' : 'Cerrado'}
+                </span>
+              </div>
+              <div className="mt-4 flex items-baseline gap-3 flex-wrap">
+                <span className="font-display text-6xl leading-none">20%</span>
+                <span className={`text-sm ${activeMonth === 'mayo' ? 'text-cream-200/80' : 'text-earth-700/70'}`}>de descuento</span>
+              </div>
+              <div className={`mt-4 text-sm ${activeMonth === 'mayo' ? 'text-cream-100/85' : 'text-earth-700/80'}`}>
+                Precio promocional <span className={activeMonth === 'mayo' ? 'text-cream-50 font-medium' : 'text-earth-800 font-medium'}>{ARS(precioMayo)}</span>
+                <span className={`mx-2 ${activeMonth === 'mayo' ? 'text-cream-200/50' : 'text-earth-600/50'} line-through`}>{ARS(precioLista)}</span>
+              </div>
+              <div className={`mt-2 text-xs ${activeMonth === 'mayo' ? 'text-cream-200/60' : 'text-earth-600/70'}`}>Pago contado en pesos · hasta el 31 de mayo</div>
+            </div>
+
+            <div className={`rounded-md p-7 border ${activeMonth === 'junio' ? 'bg-earth-700 text-cream-50 border-earth-700 shadow-[0_30px_60px_-40px_rgba(74,56,38,0.6)]' : 'bg-cream-50 text-earth-800 border-earth-700/15'}`}>
+              <div className="flex items-center justify-between">
+                <div className={`text-[10px] tracking-[0.3em] uppercase ${activeMonth === 'junio' ? 'text-cream-200/70' : 'text-earth-600'}`}>Junio 2026</div>
+                <span className={`text-[10px] tracking-[0.2em] uppercase px-2.5 py-1 rounded-full ${activeMonth === 'junio' ? 'bg-cream-50/15 text-cream-100' : 'bg-earth-700/10 text-earth-700'}`}>
+                  {activeMonth === 'junio' ? 'Mes en curso' : 'Próximo'}
+                </span>
+              </div>
+              <div className="mt-4 flex items-baseline gap-3 flex-wrap">
+                <span className="font-display text-6xl leading-none">10%</span>
+                <span className={`text-sm ${activeMonth === 'junio' ? 'text-cream-200/80' : 'text-earth-700/70'}`}>de descuento</span>
+              </div>
+              <div className={`mt-4 text-sm ${activeMonth === 'junio' ? 'text-cream-100/85' : 'text-earth-700/80'}`}>
+                Precio promocional <span className={activeMonth === 'junio' ? 'text-cream-50 font-medium' : 'text-earth-800 font-medium'}>{ARS(precioJunio)}</span>
+                <span className={`mx-2 ${activeMonth === 'junio' ? 'text-cream-200/50' : 'text-earth-600/50'} line-through`}>{ARS(precioLista)}</span>
+              </div>
+              <div className={`mt-2 text-xs ${activeMonth === 'junio' ? 'text-cream-200/60' : 'text-earth-600/70'}`}>Pago contado en pesos · hasta el 30 de junio</div>
+            </div>
+
+            {/* crypto card */}
+            <div className="rounded-md p-6 border border-earth-700/15 bg-cream-50 flex items-center gap-5">
+              <div className="flex -space-x-2">
+                <div className="h-11 w-11 rounded-full bg-[#F7931A] flex items-center justify-center text-cream-50 font-bold text-sm border-2 border-cream-50">₿</div>
+                <div className="h-11 w-11 rounded-full bg-[#26A17B] flex items-center justify-center text-cream-50 font-bold text-xs border-2 border-cream-50">USDT</div>
+                <div className="h-11 w-11 rounded-full bg-earth-700 flex items-center justify-center text-cream-50 font-bold text-xs border-2 border-cream-50">+</div>
+              </div>
+              <div className="flex-1">
+                <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">También consultar por</div>
+                <div className="font-display text-xl text-earth-800 mt-0.5">Pago en criptomonedas</div>
+                <div className="text-xs text-earth-700/70 mt-0.5">USDT · BTC · Coordinamos al momento de reservar.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>);
+
+}
+
+/* ─────────────────────── CALCULATOR ─────────────────────── */
 function Calculator() {
   const [entrega, setEntrega] = useState(DEFAULT_ENTREGA);
   const [activeTerm, setActiveTerm] = useState(12);
-  const sliderRef = useRef(null);
 
   const saldo = Math.max(0, PRICE_ARS - entrega);
-  const pct = entrega / PRICE_ARS * 100;
+  const cuotaFija12 = saldo / 12;
+  const cuota24 = saldo / 24;
+  const cuota36 = saldo / 36;
+  const cuota48 = saldo / 48;
 
   const terms = [
-    { months: 12, cuota: saldo / 12, type: "fija", note: "Sin ajustes hasta el último vencimiento." },
-    { months: 24, cuota: saldo / 24, type: "ipc",  note: "Se actualiza mes a mes por inflación oficial." },
-    { months: 36, cuota: saldo / 36, type: "ipc",  note: "Más plazo, menos esfuerzo mensual." },
-    { months: 48, cuota: saldo / 48, type: "ipc",  note: "Plan más largo · cuota inicial mínima." },
-  ];
-  const active = terms.find((t) => t.months === activeTerm);
+  { months: 12, value: cuotaFija12, type: 'fija', label: 'Cuota fija en pesos', note: 'Sin ajustes hasta el último vencimiento.' },
+  { months: 24, value: cuota24, type: 'ipc', label: 'Cuota ajustable IPC', note: 'Se actualiza mes a mes por inflación oficial.' },
+  { months: 36, value: cuota36, type: 'ipc', label: 'Cuota ajustable IPC', note: 'Más plazo, menos esfuerzo mensual.' },
+  { months: 48, value: cuota48, type: 'ipc', label: 'Cuota ajustable IPC', note: 'Plan más largo · cuota inicial mínima.' }];
 
-  useEffect(() => {
-    if (sliderRef.current) {
-      const p = ((entrega - MIN_ENTREGA) / (MAX_ENTREGA - MIN_ENTREGA)) * 100;
-      sliderRef.current.style.setProperty("--pct", `${p}%`);
-    }
-  }, [entrega]);
+
+  const active = terms.find((t) => t.months === activeTerm);
+  const pct = entrega / PRICE_ARS * 100;
 
   return (
-    <section id="calculadora" style={{
-      padding: "clamp(4rem, 7vw, 8rem) var(--pad-x)",
-    }}>
-      <div style={{ maxWidth: "var(--max-w)", margin: "0 auto" }}>
+    <section id="calculadora" className="py-24 lg:py-32">
+      <div className="max-w-7xl mx-auto px-6 lg:px-10">
         <SectionHeader
           kicker="03 · Calculadora"
           title="Armá tu plan en treinta segundos."
-          lead="Movés la entrega, elegís el plazo, y ves la cuota exacta. Sin letra chica."
-        />
+          lead="Movés la entrega, elegís el plazo, y ves la cuota exacta. Sin letra chica." />
+        
 
-        <div style={{
-          marginTop: 48,
-          display: "grid",
-          gridTemplateColumns: "minmax(0,5fr) minmax(0,7fr)",
-          gap: 24,
-          alignItems: "start",
-        }}>
-          {/* Controls */}
-          <div style={{
-            background: "var(--c-cream-100)",
-            border: "1px solid rgba(92,61,30,0.12)",
-            borderRadius: "var(--radius-lg)",
-            padding: "clamp(1.5rem, 3vw, 2.5rem)",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase", color: "var(--c-earth-500)" }}>
-                Valor del lote
-              </span>
-              <span style={{ fontSize: 13, color: "var(--c-earth-500)" }}>USD 15.000</span>
+        <div className="mt-16 grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* CONTROLS */}
+          <div className="lg:col-span-5 bg-cream-50 border border-earth-700/15 rounded-md p-8 lg:p-10">
+            <div className="flex items-baseline justify-between">
+              <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">Valor del lote</div>
+              <div className="text-sm text-earth-700/70">USD 15.000</div>
             </div>
-            <div style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "2.8rem",
-              color: "var(--c-earth-800)",
-              lineHeight: 1.1,
-              marginTop: 6,
-            }}>{ARS(PRICE_ARS)}</div>
+            <div className="font-display text-5xl text-earth-800 mt-1">{ARS(PRICE_ARS)}</div>
 
-            <hr className="hairline" style={{ margin: "28px 0" }} />
+            <div className="hairline my-8" />
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-              <span style={{ fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase", color: "var(--c-earth-500)" }}>
-                Tu entrega
-              </span>
-              <span style={{ fontSize: 12, color: "var(--c-earth-500)" }}>{pct.toFixed(0)}% del total</span>
-            </div>
-            <div style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "2.2rem",
-              color: "var(--c-earth-800)",
-              marginBottom: 18,
-            }}>{ARS(entrega)}</div>
+            <label className="block">
+              <div className="flex items-baseline justify-between">
+                <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">Tu entrega</div>
+                <div className="text-xs text-earth-700/70">{pct.toFixed(0)}% del total</div>
+              </div>
+              <div className="mt-2 flex items-baseline gap-3">
+                <span className="font-display text-4xl text-earth-800">{ARS(entrega)}</span>
+              </div>
+              <input
+                type="range"
+                className="earth-slider w-full mt-5"
+                min={MIN_ENTREGA}
+                max={MAX_ENTREGA}
+                step={100_000}
+                value={entrega}
+                onChange={(e) => setEntrega(Number(e.target.value))} />
+              
+              <div className="flex justify-between text-[10px] tracking-[0.2em] uppercase text-earth-600/70 mt-2">
+                <span>Mín. {ARS(MIN_ENTREGA)}</span>
+                <span>Máx. {ARS(MAX_ENTREGA)}</span>
+              </div>
+            </label>
 
-            <input
-              ref={sliderRef}
-              type="range"
-              min={MIN_ENTREGA}
-              max={MAX_ENTREGA}
-              step={100_000}
-              value={entrega}
-              onChange={(e) => setEntrega(Number(e.target.value))}
-            />
-            <div style={{
-              display: "flex", justifyContent: "space-between",
-              fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase",
-              color: "var(--c-earth-400)", marginTop: 8,
-            }}>
-              <span>Mín. {ARS(MIN_ENTREGA)}</span>
-              <span>Máx. {ARS(MAX_ENTREGA)}</span>
+            <div className="mt-6 flex flex-wrap gap-2">
+              {[6_000_000, 6_500_000, 8_000_000, 10_500_000].map((v) =>
+              <button
+                key={v}
+                onClick={() => setEntrega(v)}
+                className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                entrega === v ?
+                'bg-earth-700 text-cream-50 border-earth-700' :
+                'bg-cream-100 text-earth-700 border-earth-700/20 hover:bg-cream-200'}`
+                }>
+                
+                  {ARS(v)}
+                </button>
+              )}
             </div>
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 20 }}>
-              {[6_000_000, 6_500_000, 8_000_000, 10_500_000].map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setEntrega(v)}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: 999,
-                    fontSize: 12,
-                    cursor: "pointer",
-                    border: "1px solid " + (entrega === v ? "var(--c-earth-700)" : "rgba(92,61,30,0.2)"),
-                    background: entrega === v ? "var(--c-earth-700)" : "var(--c-cream-50)",
-                    color: entrega === v ? "var(--c-cream-50)" : "var(--c-earth-700)",
-                    transition: "all 0.15s",
-                  }}
-                >{ARS(v)}</button>
-              ))}
-            </div>
+            <div className="hairline my-8" />
 
-            <hr className="hairline" style={{ margin: "24px 0" }} />
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-              <span style={{ fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase", color: "var(--c-earth-500)" }}>
-                Saldo a financiar
-              </span>
-              <span style={{ fontSize: 12, color: "var(--c-earth-500)" }}>{(100 - pct).toFixed(0)}% restante</span>
+            <div className="flex items-baseline justify-between">
+              <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">Saldo a financiar</div>
+              <div className="text-xs text-earth-700/70">{(100 - pct).toFixed(0)}% restante</div>
             </div>
-            <div style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "1.9rem",
-              color: "var(--c-earth-600)",
-            }}>{ARS(saldo)}</div>
+            <div className="font-display text-3xl text-earth-700 mt-1">{ARS(saldo)}</div>
           </div>
 
-          {/* Results */}
-          <div>
+          {/* RESULTS */}
+          <div className="lg:col-span-7">
             {/* Term selector */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: 6,
-              background: "rgba(184,144,110,0.14)",
-              padding: 6,
-              borderRadius: 999,
-              border: "1px solid rgba(92,61,30,0.08)",
-            }}>
-              {terms.map((t) => (
-                <button
-                  key={t.months}
-                  onClick={() => setActiveTerm(t.months)}
-                  style={{
-                    padding: "10px 0",
-                    borderRadius: 999,
-                    fontSize: 14,
-                    fontFamily: "var(--font-body)",
-                    cursor: "pointer",
-                    border: "none",
-                    transition: "all 0.2s",
-                    background: activeTerm === t.months ? "var(--c-earth-700)" : "transparent",
-                    color: activeTerm === t.months ? "var(--c-cream-50)" : "var(--c-earth-600)",
-                    fontWeight: activeTerm === t.months ? 500 : 400,
-                  }}
-                >{t.months} meses</button>
-              ))}
+            <div className="grid grid-cols-4 gap-2 bg-cream-200/60 p-1.5 rounded-full border border-earth-700/10">
+              {terms.map((t) =>
+              <button
+                key={t.months}
+                onClick={() => setActiveTerm(t.months)}
+                className={`relative py-2.5 rounded-full text-sm transition-all duration-300 ${
+                activeTerm === t.months ?
+                'bg-earth-700 text-cream-50 shadow-sm' :
+                'text-earth-700 hover:bg-cream-100'}`
+                }>
+                
+                  {t.months} meses
+                </button>
+              )}
             </div>
 
             {/* Active card */}
-            <div style={{
-              marginTop: 16,
-              background: "var(--c-earth-700)",
-              color: "var(--c-cream-50)",
-              borderRadius: "var(--radius-lg)",
-              padding: "clamp(2rem, 3vw, 3rem)",
-              position: "relative",
-              overflow: "hidden",
-            }}>
-              {/* decorative grain */}
-              <div style={{
-                position: "absolute", inset: 0,
-                backgroundImage: "radial-gradient(circle at 80% 20%, rgba(245,237,223,0.04) 0%, transparent 60%)",
-                pointerEvents: "none",
-              }} />
-
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <Tag>{active.type === "fija" ? "Cuota fija" : "Ajuste IPC"}</Tag>
-                <span style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(245,237,223,0.5)" }}>
-                  Plazo {active.months} meses
-                </span>
+            <div className="mt-6 bg-earth-700 text-cream-50 rounded-md p-10 lg:p-12 relative overflow-hidden">
+              <div className="flex items-center gap-2">
+                <Tag tone="dark">{active.type === 'fija' ? 'Cuota fija' : 'Ajuste IPC'}</Tag>
+                <span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/70">Plazo {active.months} meses</span>
               </div>
-
-              <div style={{ marginTop: 20, fontSize: 14, color: "rgba(245,237,223,0.7)" }}>
-                Tu cuota mensual estimada
+              <div className="mt-6 text-cream-200/80 text-sm">Tu cuota mensual estimada</div>
+              <div className="mt-2 flex items-baseline gap-3 flex-wrap">
+                <span className="font-display text-6xl md:text-7xl text-cream-50 leading-none">{ARS(active.value)}</span>
+                <span className="text-cream-200/70 text-sm">/ mes</span>
               </div>
+              <div className="mt-4 text-cream-100/85 max-w-md">{active.note}</div>
 
-              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
-                <span style={{
-                  fontFamily: "var(--font-display)",
-                  fontSize: "clamp(3rem, 5vw, 4.5rem)",
-                  lineHeight: 1,
-                  color: "var(--c-cream-50)",
-                }}>{ARS(Math.round(active.cuota))}</span>
-                <span style={{ fontSize: 14, color: "rgba(245,237,223,0.6)" }}>/ mes</span>
-              </div>
-
-              <p style={{ marginTop: 12, fontSize: 15, color: "rgba(245,237,223,0.8)", maxWidth: 440 }}>
-                {active.note}
-              </p>
-
-              <hr style={{ border: "none", borderTop: "1px solid rgba(245,237,223,0.15)", margin: "28px 0 20px" }} />
-
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: "1.5rem",
-              }}>
-                {[
-                  { l: "Entrega", v: ARS(entrega) },
-                  { l: "Saldo", v: ARS(saldo) },
-                  {
-                    l: "Total estimado",
-                    v: active.type === "fija"
-                      ? ARS(entrega + Math.round(active.cuota) * active.months)
-                      : "Variable IPC",
-                  },
-                ].map(({ l, v }) => (
-                  <div key={l}>
-                    <div style={{ fontSize: 10, letterSpacing: "0.28em", textTransform: "uppercase", color: "rgba(245,237,223,0.5)" }}>{l}</div>
-                    <div style={{
-                      fontFamily: "var(--font-display)",
-                      fontSize: "1.5rem",
-                      color: "var(--c-cream-50)",
-                      marginTop: 4,
-                    }}>{v}</div>
+              <div className="hairline mt-10 border-cream-200/20" style={{ borderColor: 'rgba(235,224,201,0.2)' }} />
+              <div className="mt-6 grid grid-cols-3 gap-6 text-sm">
+                <div>
+                  <div className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60">Entrega</div>
+                  <div className="font-display text-2xl text-cream-50 mt-1">{ARS(entrega)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60">Saldo</div>
+                  <div className="font-display text-2xl text-cream-50 mt-1">{ARS(saldo)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60">Total estimado</div>
+                  <div className="font-display text-2xl text-cream-50 mt-1">
+                    {active.type === 'fija' ? ARS(entrega + active.value * active.months) : 'Variable IPC'}
                   </div>
-                ))}
+                </div>
               </div>
             </div>
 
-            {/* All terms quick */}
-            <div style={{
-              marginTop: 12,
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: 8,
-            }}>
-              {terms.map((t) => (
-                <button
-                  key={t.months}
-                  onClick={() => setActiveTerm(t.months)}
-                  style={{
-                    textAlign: "left",
-                    background: "var(--c-cream-50)",
-                    border: "1px solid " + (activeTerm === t.months ? "var(--c-earth-700)" : "rgba(92,61,30,0.14)"),
-                    borderRadius: "var(--radius)",
-                    padding: "14px 16px",
-                    cursor: "pointer",
-                    transition: "border-color 0.15s",
-                    fontFamily: "var(--font-body)",
-                  }}
-                >
-                  <div style={{ fontSize: 10, letterSpacing: "0.25em", textTransform: "uppercase", color: "var(--c-earth-500)" }}>
-                    {t.months}m · {t.type === "fija" ? "Fija" : "IPC"}
-                  </div>
-                  <div style={{
-                    fontFamily: "var(--font-display)",
-                    fontSize: "1.2rem",
-                    color: "var(--c-earth-800)",
-                    marginTop: 6,
-                    lineHeight: 1.2,
-                  }}>{ARS(Math.round(t.cuota))}</div>
-                  <div style={{ fontSize: 11, color: "var(--c-earth-400)", marginTop: 2 }}>por mes</div>
+            {/* All terms quick view */}
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+              {terms.map((t) =>
+              <button
+                key={t.months}
+                onClick={() => setActiveTerm(t.months)}
+                className={`text-left bg-cream-50 border rounded-md p-4 transition-all ${
+                activeTerm === t.months ? 'border-earth-700' : 'border-earth-700/15 hover:border-earth-700/40'}`
+                }>
+                
+                  <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">{t.months}m · {t.type === 'fija' ? 'Fija' : 'IPC'}</div>
+                  <div className="font-display text-xl text-earth-800 mt-1.5 leading-tight">{ARS(t.value)}</div>
+                  <div className="text-[11px] text-earth-700/60 mt-0.5">por mes</div>
                 </button>
-              ))}
+              )}
             </div>
 
-            <p style={{
-              marginTop: 16, fontSize: 12,
-              color: "var(--c-earth-400)", lineHeight: 1.7,
-            }}>
-              * Los planes de 24, 36 y 48 meses se ajustan mensualmente por el IPC (INDEC).
-              El plan de 12 meses es cuota fija en pesos sin ajustes ni intereses. Sujeto a disponibilidad.
+            <p className="mt-6 text-xs text-earth-700/60 leading-relaxed">
+              * Los planes de 24, 36 y 48 meses se ajustan mensualmente por el Índice de Precios al Consumidor (IPC) publicado por INDEC.
+              El plan de 12 meses es de cuota fija en pesos sin ajustes ni intereses. Sujeto a disponibilidad y aprobación.
             </p>
           </div>
         </div>
       </div>
-    </section>
-  );
+    </section>);
+
 }
 
-// ─── PLANES ──────────────────────────────────────────────────────────────────
+/* ─────────────────────── COMPARISON TABLE ─────────────────────── */
 function Planes() {
   const isMay = CURRENT_MONTH === 4;
-  const promoLabel = isMay ? "Mayo 20% OFF" : "Junio 10% OFF";
+  const promoLabel = isMay ? 'Mayo 20% OFF' : 'Junio 10% OFF';
   const promoPct = isMay ? 20 : 10;
   const contadoPrice = Math.round(PRICE_ARS * (1 - promoPct / 100));
 
   const plans = [
-    {
-      key: "contado",
-      name: "Contado en pesos",
-      tag: promoLabel,
-      headline: ARS(contadoPrice),
-      headlineSub: `Lista ${ARS(PRICE_ARS)} · ${promoPct}% OFF`,
-      desc: `Pago contado en pesos durante ${isMay ? "mayo" : "junio"} · también en criptomonedas`,
-      rows: [
-        ["Entrega", "100% al firmar"],
-        ["Cuotas", "—"],
-        ["Ajuste", "Ninguno"],
-        ["Boleto", "Inmediato"],
-        ["Escritura", "30 días"],
-        ["Descuento", `${promoPct}% sobre lista`],
-      ],
-      cta: "Reservar al precio promo",
-      featured: false,
-      tagAccent: true,
-    },
-    {
-      key: "corto",
-      name: "Financiado · Corto plazo",
-      tag: "Único en pesos",
-      headline: ARS(1_250_000),
-      headlineSub: "cuota fija · 12 meses · sin descuento",
-      desc: `Entrega ${ARS(6_000_000)} + 12 cuotas fijas en pesos. Una de las 15 unidades de La Era del Peso.`,
-      rows: [
-        ["Entrega", ARS(6_000_000)],
-        ["Cuotas", "12 mensuales"],
-        ["Ajuste", "Ninguno · cuota fija"],
-        ["Boleto", "Al firmar"],
-        ["Escritura", "Al cancelar"],
-        ["Descuento", "—"],
-      ],
-      cta: "Reservar mi lote",
-      featured: true,
-    },
-    {
-      key: "largo",
-      name: "Financiado · Largo plazo",
-      tag: "15 unidades",
-      headline: ARS(302_083),
-      headlineSub: "desde · 48 meses IPC · sin descuento",
-      desc: `Entrega ${ARS(6_500_000)} + 24, 36 o 48 cuotas ajustables IPC. Cupo limitado.`,
-      rows: [
-        ["Entrega", ARS(6_500_000)],
-        ["Cuotas", "24 / 36 / 48 meses"],
-        ["Ajuste", "Mensual por IPC"],
-        ["Boleto", "Al firmar"],
-        ["Escritura", "Al cancelar"],
-        ["Descuento", "—"],
-      ],
-      cta: "Simular largo plazo",
-      featured: false,
-    },
-  ];
+  {
+    key: 'contado',
+    name: 'Contado en pesos',
+    tag: promoLabel,
+    tone: 'sage',
+    headline: ARS(contadoPrice),
+    headlineSub: 'Lista ' + ARS(PRICE_ARS) + ' · ' + promoPct + '% OFF',
+    bullet: 'Pago contado en pesos durante ' + (isMay ? 'mayo' : 'junio') + ' · también en criptomonedas',
+    rows: [
+    ['Entrega', '100% al firmar'],
+    ['Cuotas', '—'],
+    ['Ajuste', 'Ninguno'],
+    ['Boleto', 'Inmediato'],
+    ['Escritura', '30 días'],
+    ['Descuento', promoPct + '% sobre lista']],
+
+    cta: 'Reservar al precio promo'
+  },
+  {
+    key: 'corto',
+    name: 'Financiado · Corto plazo',
+    tag: 'Único en pesos',
+    tone: 'dark',
+    headline: ARS(1_250_000),
+    headlineSub: 'cuota fija · 12 meses · sin descuento',
+    bullet: 'Entrega ' + ARS(6_000_000) + ' + 12 cuotas fijas en pesos. Una de las 15 unidades de La Era del Peso.',
+    rows: [
+    ['Entrega', ARS(6_000_000)],
+    ['Cuotas', '12 mensuales'],
+    ['Ajuste', 'Ninguno · cuota fija'],
+    ['Boleto', 'Al firmar'],
+    ['Escritura', 'Al cancelar'],
+    ['Descuento', '—']],
+
+    cta: 'Reservar mi lote',
+    featured: true
+  },
+  {
+    key: 'largo',
+    name: 'Financiado · Largo plazo',
+    tag: '15 unidades',
+    tone: 'earth',
+    headline: ARS(302_083),
+    headlineSub: 'desde · 48 meses IPC · sin descuento',
+    bullet: 'Entrega ' + ARS(6_500_000) + ' + 24, 36 o 48 cuotas ajustables IPC. Cupo limitado a la lista cerrada.',
+    rows: [
+    ['Entrega', ARS(6_500_000)],
+    ['Cuotas', '24 / 36 / 48 meses'],
+    ['Ajuste', 'Mensual por IPC'],
+    ['Boleto', 'Al firmar'],
+    ['Escritura', 'Al cancelar'],
+    ['Descuento', '—']],
+
+    cta: 'Simular largo plazo'
+  }];
+
 
   return (
-    <section id="planes" style={{
-      background: "rgba(235,217,184,0.15)",
-      borderTop: "1px solid rgba(92,61,30,0.1)",
-      borderBottom: "1px solid rgba(92,61,30,0.1)",
-      padding: "clamp(4rem, 7vw, 8rem) var(--pad-x)",
-    }}>
-      <div style={{ maxWidth: "var(--max-w)", margin: "0 auto" }}>
+    <section id="planes" className="py-24 lg:py-32 bg-cream-50/60 border-y border-earth-700/10">
+      <div className="max-w-7xl mx-auto px-6 lg:px-10">
         <SectionHeader
           kicker="04 · Planes de pago"
           title="Tres caminos para llegar al mismo lugar."
-          lead="Elegí lo que se acomoda a tu liquidez. Todos los planes se firman ante escribano y el lote queda a tu nombre desde el boleto."
-        />
+          lead="Elegí lo que se acomoda a tu liquidez. Todos los planes se firman ante escribano y el lote queda a tu nombre desde el boleto." />
+        
 
-        <div style={{
-          marginTop: 48,
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 20,
-          alignItems: "end",
-        }}>
-          {plans.map((p) => (
-            <div key={p.key} style={{
-              borderRadius: "var(--radius-lg)",
-              padding: "clamp(1.5rem, 2.5vw, 2.5rem)",
-              border: "1px solid " + (p.featured ? "var(--c-earth-700)" : "rgba(92,61,30,0.14)"),
-              background: p.featured ? "var(--c-earth-700)" : "var(--c-cream-50)",
-              color: p.featured ? "var(--c-cream-50)" : "var(--c-earth-800)",
-              boxShadow: p.featured ? "0 20px 48px -24px rgba(61,43,20,0.45)" : "none",
-              marginTop: p.featured ? 0 : 16,
-              display: "flex",
-              flexDirection: "column",
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{
-                  fontSize: 10, letterSpacing: "0.28em", textTransform: "uppercase",
-                  color: p.featured ? "rgba(245,237,223,0.55)" : "var(--c-earth-500)",
-                }}>{p.name}</div>
-                <span style={{
-                  fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase",
-                  padding: "4px 12px", borderRadius: 999,
-                  background: p.featured
-                    ? "rgba(245,237,223,0.15)"
-                    : p.tagAccent
-                    ? "rgba(196,82,42,0.1)"
-                    : "rgba(92,61,30,0.08)",
-                  color: p.featured
-                    ? "var(--c-cream-200)"
-                    : p.tagAccent
-                    ? "var(--c-terra)"
-                    : "var(--c-earth-600)",
-                }}>{p.tag}</span>
-              </div>
+        <div className="mt-16 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {plans.map((p) => {
+            const featured = p.featured;
+            return (
+              <div
+                key={p.key}
+                className={`relative rounded-md p-8 lg:p-10 flex flex-col ${
+                featured ?
+                'bg-earth-700 text-cream-50 border border-earth-700 lg:-mt-4 lg:mb-0 shadow-[0_30px_60px_-40px_rgba(74,56,38,0.6)]' :
+                'bg-cream-50 text-earth-800 border border-earth-700/15'}`
+                }>
+                
+                <div className="flex items-center justify-between">
+                  <div className={`text-[10px] tracking-[0.3em] uppercase ${featured ? 'text-cream-200/70' : 'text-earth-600'}`}>{p.name}</div>
+                  <span className={`text-[10px] tracking-[0.2em] uppercase px-2.5 py-1 rounded-full ${
+                  featured ? 'bg-cream-50/15 text-cream-100' : p.tone === 'sage' ? 'bg-sage-400/20 text-sage-700' : 'bg-earth-700/10 text-earth-700'}`
+                  }>{p.tag}</span>
+                </div>
 
-              <div style={{ marginTop: 28 }}>
-                <div style={{
-                  fontFamily: "var(--font-display)",
-                  fontSize: "clamp(2.2rem, 3.5vw, 3.2rem)",
-                  fontWeight: 400,
-                  lineHeight: 1,
-                  color: p.featured ? "var(--c-cream-50)" : "var(--c-earth-800)",
-                }}>{p.headline}</div>
-                <div style={{
-                  marginTop: 8, fontSize: 13,
-                  color: p.featured ? "rgba(245,237,223,0.7)" : "var(--c-earth-500)",
-                }}>{p.headlineSub}</div>
-              </div>
+                <div className="mt-8">
+                  <div className={`font-display text-5xl lg:text-6xl leading-none ${featured ? 'text-cream-50' : 'text-earth-800'}`}>{p.headline}</div>
+                  <div className={`mt-2 text-sm ${featured ? 'text-cream-200/80' : 'text-earth-700/70'}`}>{p.headlineSub}</div>
+                </div>
 
-              <p style={{
-                marginTop: 16, fontSize: 14, lineHeight: 1.7,
-                color: p.featured ? "rgba(245,237,223,0.85)" : "var(--c-earth-600)",
-              }}>{p.desc}</p>
+                <div className={`mt-6 text-sm leading-relaxed ${featured ? 'text-cream-100/90' : 'text-earth-700/80'}`}>
+                  {p.bullet}
+                </div>
 
-              <hr style={{
-                border: "none",
-                borderTop: "1px solid " + (p.featured ? "rgba(245,237,223,0.15)" : "rgba(92,61,30,0.12)"),
-                margin: "24px 0",
-              }} />
+                <div className={`my-8 ${featured ? 'border-t border-cream-200/20' : 'hairline'}`} />
 
-              <dl style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 14, flex: 1 }}>
-                {p.rows.map(([k, v]) => (
-                  <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <dt style={{ color: p.featured ? "rgba(245,237,223,0.6)" : "var(--c-earth-500)" }}>{k}</dt>
-                    <dd style={{
-                      textAlign: "right",
-                      color: p.featured ? "var(--c-cream-50)" : "var(--c-earth-800)",
-                      fontWeight: 400,
-                    }}>{v}</dd>
-                  </div>
-                ))}
-              </dl>
+                <dl className="space-y-3 text-sm">
+                  {p.rows.map(([k, v]) =>
+                  <div key={k} className="flex justify-between gap-4">
+                      <dt className={featured ? 'text-cream-200/70' : 'text-earth-600'}>{k}</dt>
+                      <dd className={`text-right ${featured ? 'text-cream-50' : 'text-earth-800'}`}>{v}</dd>
+                    </div>
+                  )}
+                </dl>
 
-              <a href="#contacto" style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                marginTop: 28,
-                padding: "12px 20px",
-                borderRadius: 999,
-                fontSize: 14,
-                fontWeight: 500,
-                textDecoration: "none",
-                cursor: "pointer",
-                transition: "opacity 0.2s",
-                background: p.featured ? "var(--c-cream-50)" : "var(--c-earth-700)",
-                color: p.featured ? "var(--c-earth-700)" : "var(--c-cream-50)",
-              }}>
-                {p.cta}
-                <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-                  <path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </a>
-            </div>
-          ))}
+                <div className="mt-10">
+                  <a
+                    href="#contacto"
+                    className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm tracking-wide transition-colors ${
+                    featured ?
+                    'bg-cream-50 text-earth-700 hover:bg-cream-100' :
+                    'bg-earth-700 text-cream-50 hover:bg-earth-800'}`
+                    }>
+                    
+                    {p.cta}
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </a>
+                </div>
+              </div>);
+
+          })}
         </div>
 
-        {/* Summary table */}
-        <div style={{ marginTop: 48, overflowX: "auto" }}>
-          <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse" }}>
+        {/* Detailed comparison table */}
+        <div className="mt-16 overflow-x-auto">
+          <table className="w-full text-sm">
             <thead>
-              <tr>
-                <th style={{ textAlign: "left", padding: "12px 12px 12px 0", fontSize: 10, letterSpacing: "0.28em", textTransform: "uppercase", color: "var(--c-earth-500)", fontWeight: 400, width: "26%" }}>Detalle</th>
-                {plans.map((p) => (
-                  <th key={p.key} style={{ textAlign: "left", padding: "12px", fontSize: 10, letterSpacing: "0.28em", textTransform: "uppercase", color: "var(--c-earth-500)", fontWeight: 400 }}>{p.name}</th>
-                ))}
+              <tr className="text-left">
+                <th className="py-4 pr-4 text-[10px] tracking-[0.3em] uppercase text-earth-600 font-normal w-1/4">Detalle</th>
+                {plans.map((p) =>
+                <th key={p.key} className="py-4 px-4 text-[10px] tracking-[0.3em] uppercase text-earth-600 font-normal">
+                    {p.name}
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
               {[
-                ["Precio total estimado", `${ARS(contadoPrice)} · ${promoPct}% OFF`, ARS(21_000_000), "USD 15.000 + IPC"],
-                ["Entrega inicial", "100%", ARS(6_000_000), ARS(6_500_000)],
-                ["Cantidad de cuotas", "—", "12", "24 / 36 / 48"],
-                ["Tipo de cuota", "—", "Fija en pesos", "Ajuste IPC mensual"],
-                ["Posesión", "Inmediata", "Inmediata", "Inmediata"],
-                ["Escritura", "30 días", "Al cancelar", "Al cancelar"],
-                ["Reserva", ARS(500_000), ARS(500_000), ARS(500_000)],
-              ].map((row, i) => (
-                <tr key={i} style={{ borderTop: "1px solid rgba(92,61,30,0.1)" }}>
-                  <td style={{ padding: "14px 12px 14px 0", color: "var(--c-earth-600)" }}>{row[0]}</td>
-                  {row.slice(1).map((cell, j) => (
-                    <td key={j} style={{ padding: "14px 12px", color: j === 1 ? "var(--c-earth-800)" : "var(--c-earth-600)", fontWeight: j === 1 ? 500 : 400 }}>{cell}</td>
-                  ))}
+              ['Precio total estimado', ARS(contadoPrice) + ' · ' + promoPct + '% OFF', ARS(21_000_000), 'USD 15.000 + IPC'],
+              ['Entrega inicial', '100%', ARS(6_000_000), ARS(6_500_000)],
+              ['Cantidad de cuotas', '—', '12', '24 / 36 / 48'],
+              ['Tipo de cuota', '—', 'Fija en pesos', 'Ajuste IPC mensual'],
+              ['Posesión', 'Inmediata', 'Inmediata', 'Inmediata'],
+              ['Escritura', '30 días', 'Al cancelar', 'Al cancelar'],
+              ['Reserva', ARS(500_000), ARS(500_000), ARS(500_000)]].
+              map((row, i) =>
+              <tr key={i} className="border-t border-earth-700/10">
+                  <td className="py-4 pr-4 text-earth-700">{row[0]}</td>
+                  {row.slice(1).map((cell, j) =>
+                <td key={j} className={`py-4 px-4 ${j === 1 ? 'text-earth-800 font-medium' : 'text-earth-700'}`}>{cell}</td>
+                )}
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
       </div>
-    </section>
-  );
+    </section>);
+
 }
 
-// ─── GALERÍA ─────────────────────────────────────────────────────────────────
+/* ─────────────────────── GALLERY ─────────────────────── */
 function Gallery() {
-  const imgs = [
-    { src: "https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/Estancia-Paraiso-familias-03.jpg", alt: "Familias", span: "5" },
-    { src: "https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/Estancia-Paraiso-familias-04.jpg", alt: "Vida en el barrio", span: "7" },
-    { src: "https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/Estancia-Paraiso-familias-05.jpg", alt: "Paisaje del lote", span: "7" },
-    { src: "https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/Estancia-Paraiso-familias-06.jpg", alt: "Naturaleza", span: "5" },
-  ];
   return (
-    <section style={{ padding: "clamp(4rem, 7vw, 8rem) var(--pad-x)" }}>
-      <div style={{ maxWidth: "var(--max-w)", margin: "0 auto" }}>
-        <SectionHeader
-          kicker="05 · Galería"
-          title="Cuatro estaciones, el mismo arroyo."
-        />
-        <div style={{
-          marginTop: 48,
-          display: "grid",
-          gridTemplateColumns: "repeat(12, 1fr)",
-          gap: 14,
-        }}>
-          {imgs.map((img, i) => (
-            <img key={i}
-              src={img.src}
-              alt={img.alt}
-              style={{
-                gridColumn: `span ${img.span}`,
-                width: "100%",
-                aspectRatio: img.span === "5" ? "4/5" : "16/10",
-                objectFit: "cover",
-                borderRadius: "var(--radius-lg)",
-                display: "block",
-              }}
-            />
-          ))}
+    <section className="py-24 lg:py-32">
+      <div className="max-w-7xl mx-auto px-6 lg:px-10">
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <SectionHeader
+            kicker="05 · Galería"
+            title="Cuatro estaciones, el mismo arroyo." />
+          
+          <div className="text-sm text-earth-700/70 max-w-xs">
+            Las fotografías son reales y sin edición. Subí las tuyas arrastrándolas a cada cuadro.
+          </div>
+        </div>
+
+        <div className="mt-14 grid grid-cols-12 gap-4">
+          <img src="https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/Estancia-Paraiso-familias-03.jpg" alt="Familias" className="col-span-12 md:col-span-5 w-full object-cover rounded-md" style={{ aspectRatio: '4/5', display: 'block' }} />
+          <img src="https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/Estancia-Paraiso-familias-04.jpg" alt="Vida en el barrio" className="col-span-12 md:col-span-7 w-full object-cover rounded-md" style={{ aspectRatio: '16/10', display: 'block' }} />
+          <img src="https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/Estancia-Paraiso-familias-05.jpg" alt="Paisaje del lote" className="col-span-12 md:col-span-7 w-full object-cover rounded-md" style={{ aspectRatio: '16/10', display: 'block' }} />
+          <img src="https://estanciaparaiso.com.ar/wp-content/uploads/2022/07/Estancia-Paraiso-familias-06.jpg" alt="Naturaleza" className="col-span-12 md:col-span-5 w-full object-cover rounded-md" style={{ aspectRatio: '4/5', display: 'block' }} />
         </div>
       </div>
-    </section>
-  );
+    </section>);
+
 }
 
-// ─── CONTACTO ────────────────────────────────────────────────────────────────
+/* ─────────────────────── CONTACT / FOOTER ─────────────────────── */
 function Contacto() {
   const channels = [
-    {
-      name: "WhatsApp",
-      handle: ["+54 9 3454 34-0639", "+54 9 3454 02-1858", "+54 9 3454 02-3467"],
-      href: "https://wa.me/5493454340639",
-      cta: "Escribir por WhatsApp",
-      bg: "#25D366",
-      icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-          <path d="M17.6 14.4c-.3-.1-1.7-.8-2-1-.3-.1-.5-.1-.6.1-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.4-2.3-1.4-.9-.8-1.4-1.7-1.6-2-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.1.2-.3.2-.4.1-.2.1-.3 0-.5 0-.1-.5-1.3-.7-1.8-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2 0 1.3.9 2.5 1 2.7.1.2 1.8 2.7 4.3 3.8.6.3 1.1.4 1.5.5.6.2 1.2.2 1.6.1.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2-.1-.1-.3-.2-.5-.3M12.1 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.4c1.4.8 3.1 1.2 4.9 1.2C17.6 21.9 22 17.4 22 12s-4.4-10-9.9-10z" />
-        </svg>
-      ),
-    },
-    {
-      name: "Teléfono",
-      handle: "(0345) 422-7683",
-      href: "tel:+543454227683",
-      cta: "Llamar ahora",
-      bg: "var(--c-earth-700)",
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22">
-          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      ),
-    },
-    {
-      name: "Instagram",
-      handle: "@estancia_paraiso_",
-      href: "https://www.instagram.com/estancia_paraiso_/",
-      cta: "Ver Instagram",
-      bg: "linear-gradient(135deg, #F58529, #DD2A7B, #8134AF)",
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22">
-          <rect x="3" y="3" width="18" height="18" rx="5" />
-          <circle cx="12" cy="12" r="4" />
-          <circle cx="17.5" cy="6.5" r="1" fill="currentColor" />
-        </svg>
-      ),
-    },
-    {
-      name: "Facebook",
-      handle: "/EstanciaParaiso",
-      href: "https://www.facebook.com/Estancia-Paraiso-131428373990355/",
-      cta: "Ver Facebook",
-      bg: "#1877F2",
-      icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-          <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15h-2.4v-3H10V9.5C10 7.57 11.57 6 13.5 6H16v3h-1.5c-.55 0-1 .45-1 1V12H16l-.5 3h-2v6.95C18.05 21.45 22 17.19 22 12z" />
-        </svg>
-      ),
-    },
-    {
-      name: "YouTube",
-      handle: "@Estanciaparaisoconcordia",
-      href: "https://www.youtube.com/@Estanciaparaisoconcordia",
-      cta: "Ver canal",
-      bg: "#FF0000",
-      icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-          <path d="M23 7s-.2-1.5-.9-2.2c-.8-.9-1.8-.9-2.2-1C16.8 3.5 12 3.5 12 3.5s-4.8 0-7.9.3c-.4.1-1.4.1-2.2 1C1.2 5.5 1 7 1 7S.8 8.8.8 10.6v1.7C.8 14.1 1 16 1 16s.2 1.5.9 2.2c.8.9 1.9.8 2.4.9 1.7.2 7.7.3 7.7.3s4.8 0 7.9-.3c.4-.1 1.4-.1 2.2-1 .7-.7.9-2.2.9-2.2s.2-1.8.2-3.6v-1.7C23.2 8.8 23 7 23 7zM9.7 14.4V8L16 11.2l-6.3 3.2z" />
-        </svg>
-      ),
-    },
-  ];
+  {
+    name: 'WhatsApp',
+    handle: '+54 9 3454 34-0639',
+    href: 'https://wa.me/5493454340639',
+    cta: 'Escribir por WhatsApp',
+    bg: 'bg-[#25D366]',
+    icon:
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M17.6 14.4c-.3-.1-1.7-.8-2-1-.3-.1-.5-.1-.6.1-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.4-2.3-1.4-.9-.8-1.4-1.7-1.6-2-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.1.2-.3.2-.4.1-.2.1-.3 0-.5 0-.1-.5-1.3-.7-1.8-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2 0 1.3.9 2.5 1 2.7.1.2 1.8 2.7 4.3 3.8.6.3 1.1.4 1.5.5.6.2 1.2.2 1.6.1.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2-.1-.1-.3-.2-.5-.3M12.1 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.4c1.4.8 3.1 1.2 4.9 1.2C17.6 21.9 22 17.4 22 12s-4.4-10-9.9-10z" /></svg>
+
+  },
+  {
+    name: 'Teléfono',
+    handle: '(0345) 422-7683',
+    href: 'tel:+543454227683',
+    cta: 'Llamar ahora',
+    bg: 'bg-earth-700',
+    icon:
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+
+  },
+  {
+    name: 'Instagram',
+    handle: '@estancia_paraiso_',
+    href: 'https://www.instagram.com/estancia_paraiso_/',
+    cta: 'Ver Instagram',
+    bg: 'bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF]',
+    icon:
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" /></svg>
+
+  },
+  {
+    name: 'Facebook',
+    handle: '/EstanciaParaiso',
+    href: 'https://www.facebook.com/Estancia-Paraiso-131428373990355/',
+    cta: 'Ver Facebook',
+    bg: 'bg-[#1877F2]',
+    icon:
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15h-2.4v-3H10V9.5C10 7.57 11.57 6 13.5 6H16v3h-1.5c-.55 0-1 .45-1 1V12H16l-.5 3h-2v6.95C18.05 21.45 22 17.19 22 12z" /></svg>
+
+  },
+  {
+    name: 'YouTube',
+    handle: '@Estanciaparaisoconcordia',
+    href: 'https://www.youtube.com/@Estanciaparaisoconcordia',
+    cta: 'Ver canal',
+    bg: 'bg-[#FF0000]',
+    icon:
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M23 7s-.2-1.5-.9-2.2c-.8-.9-1.8-.9-2.2-1C16.8 3.5 12 3.5 12 3.5s-4.8 0-7.9.3c-.4.1-1.4.1-2.2 1C1.2 5.5 1 7 1 7S.8 8.8.8 10.6v1.7C.8 14.1 1 16 1 16s.2 1.5.9 2.2c.8.9 1.9.8 2.4.9 1.7.2 7.7.3 7.7.3s4.8 0 7.9-.3c.4-.1 1.4-.1 2.2-1 .7-.7.9-2.2.9-2.2s.2-1.8.2-3.6v-1.7C23.2 8.8 23 7 23 7zM9.7 14.4V8L16 11.2l-6.3 3.2z" /></svg>
+
+  }];
+
 
   return (
-    <section id="contacto" style={{
-      background: "var(--c-earth-800)",
-      color: "var(--c-cream-100)",
-      padding: "clamp(4rem, 7vw, 8rem) var(--pad-x)",
-    }}>
-      <div style={{
-        maxWidth: "var(--max-w)",
-        margin: "0 auto",
-        display: "grid",
-        gridTemplateColumns: "minmax(0,5fr) minmax(0,7fr)",
-        gap: "clamp(2.5rem, 5vw, 6rem)",
-      }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, color: "rgba(245,237,223,0.45)" }}>
-            <span style={{ height: 1, width: 32, background: "rgba(245,237,223,0.3)" }} />
-            <span style={{ fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase" }}>
-              06 · Hablemos
-            </span>
+    <section id="contacto" className="relative bg-earth-800 text-cream-100 py-24 lg:py-32">
+      <div className="max-w-7xl mx-auto px-6 lg:px-10 grid grid-cols-1 lg:grid-cols-12 gap-12">
+        <div className="lg:col-span-5">
+          <div className="flex items-center gap-3 text-cream-200/70">
+            <span className="h-px w-10 bg-cream-200/40" />
+            <span className="text-[10px] tracking-[0.3em] uppercase">06 · Hablemos</span>
           </div>
-          <h2 style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "clamp(2rem, 3.5vw, 3.4rem)",
-            fontWeight: 400,
-            lineHeight: 1.1,
-            color: "var(--c-cream-50)",
-            marginTop: 20,
-            letterSpacing: "-0.02em",
-          }}>
+          <h2 className="font-display mt-6 text-5xl md:text-6xl text-cream-50 leading-[1.05]">
             Vení a caminar el lote.<br />
-            <em style={{ fontStyle: "italic", color: "var(--c-cream-200)" }}>
-              El paisaje convence solo.
-            </em>
+            <span className="font-display-italic text-cream-200">El paisaje convence solo.</span>
           </h2>
-          <p style={{
-            marginTop: 20, fontSize: 15,
-            color: "rgba(245,237,223,0.75)", lineHeight: 1.75,
-            maxWidth: 420,
-          }}>
+          <p className="mt-6 text-cream-100/80 max-w-md leading-relaxed">
             Coordinamos visitas guiadas los sábados. Escribinos por WhatsApp o redes
             y arreglamos el día y la hora. Sin formularios, sin demoras.
           </p>
-
-          <div style={{ marginTop: 36, display: "flex", flexDirection: "column", gap: 14, fontSize: 14 }}>
-            {[
-              ["Ubicación", "Estancia Grande · Concordia · Entre Ríos"],
-              ["Horarios",  "Lun – Vie 9 a 17hs"],
-              ["Pagos",     "Pesos · USDT · BTC"],
-            ].map(([k, v]) => (
-              <div key={k} style={{ display: "flex", gap: 16 }}>
-                <span style={{
-                  fontSize: 10, letterSpacing: "0.28em", textTransform: "uppercase",
-                  color: "rgba(245,237,223,0.45)", minWidth: 76,
-                  paddingTop: 2,
-                }}>{k}</span>
-                <span style={{ color: "rgba(245,237,223,0.85)" }}>{v}</span>
-              </div>
-            ))}
+          <div className="mt-10 space-y-3 text-sm">
+            <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-24">Ubicación</span>Estancia Grande · Concordia · Entre Ríos</div>
+            <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-24">Horarios</span>Lun – Vie 9 a 17hs</div>
+            <div className="flex items-center gap-3"><span className="text-[10px] tracking-[0.3em] uppercase text-cream-200/60 w-24">Pagos</span>Pesos · USDT · BTC</div>
           </div>
         </div>
 
-        <div>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 12,
-          }}>
-            {channels.map((c) => (
-              <a key={c.name} href={c.href}
-                target={c.href.startsWith("http") ? "_blank" : undefined}
-                rel="noopener"
-                style={{
-                  textDecoration: "none",
-                  background: "var(--c-cream-50)",
-                  borderRadius: "var(--radius-lg)",
-                  padding: "20px 22px",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 14,
-                  transition: "transform 0.2s",
-                  border: "1px solid rgba(245,237,223,0.08)",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-              >
-                <div style={{
-                  width: 44, height: 44, borderRadius: "50%",
-                  background: c.bg, color: "#fff",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0,
-                }}>{c.icon}</div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 10, letterSpacing: "0.28em", textTransform: "uppercase", color: "var(--c-earth-500)" }}>
-                    {c.name}
-                  </div>
-                  <div style={{
-                    fontFamily: "var(--font-display)",
-                    fontSize: 15,
-                    color: "var(--c-earth-800)",
-                    marginTop: 4,
-                    lineHeight: 1.5,
-                  }}>
-                    {Array.isArray(c.handle)
-                      ? c.handle.map((n, i) => <div key={i}>{n}</div>)
-                      : c.handle}
-                  </div>
-                  <div style={{
-                    marginTop: 8, fontSize: 12,
-                    color: "var(--c-earth-600)",
-                    display: "flex", alignItems: "center", gap: 4,
-                  }}>
+        <div className="lg:col-span-7">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {channels.map((c) =>
+            <a
+              key={c.name}
+              href={c.href}
+              target={c.href.startsWith('http') ? '_blank' : undefined}
+              rel="noopener"
+              className="group relative bg-cream-50 text-earth-800 rounded-md p-6 flex items-start gap-4 hover:-translate-y-0.5 transition-transform duration-300 border border-cream-50">
+              
+                <div className={`w-12 h-12 rounded-full ${c.bg} text-cream-50 flex items-center justify-center shrink-0`}>
+                  {c.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] tracking-[0.3em] uppercase text-earth-600">{c.name}</div>
+                  <div className="font-display text-2xl text-earth-800 mt-1 leading-tight truncate" style={{ fontSize: "18px" }}>{c.handle}</div>
+                  <div className="mt-3 inline-flex items-center gap-1.5 text-xs text-earth-700 link-underline">
                     {c.cta}
-                    <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                      <path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+                    <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </div>
                 </div>
               </a>
-            ))}
-
-            {/* Tour 360 */}
-            <a href="https://estanciaparaiso.com.ar/tour-360/"
-              target="_blank" rel="noopener"
-              style={{
-                gridColumn: "1 / -1",
-                textDecoration: "none",
-                background: "var(--c-earth-700)",
-                border: "1px solid rgba(245,237,223,0.1)",
-                borderRadius: "var(--radius-lg)",
-                padding: "20px 24px",
-                display: "flex", alignItems: "center", gap: 16,
-                transition: "background 0.2s",
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.background = "var(--c-earth-600)"}
-              onMouseLeave={(e) => e.currentTarget.style.background = "var(--c-earth-700)"}
-            >
-              <div style={{
-                width: 44, height: 44, borderRadius: "50%",
-                background: "rgba(245,237,223,0.12)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0,
-              }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
-                </svg>
+            )}
+            <a
+              href="https://estanciaparaiso.com.ar/tour-360/"
+              target="_blank"
+              rel="noopener"
+              className="md:col-span-2 group relative bg-earth-700 text-cream-50 rounded-md p-6 flex items-center gap-4 hover:bg-earth-800 transition-colors">
+              
+              <div className="w-12 h-12 rounded-full bg-cream-50/15 flex items-center justify-center shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></svg>
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 10, letterSpacing: "0.28em", textTransform: "uppercase", color: "rgba(245,237,223,0.45)" }}>
-                  Recorrido virtual
-                </div>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", color: "var(--c-cream-50)", marginTop: 4 }}>
-                  Tour 360° por la estancia
-                </div>
+              <div className="flex-1">
+                <div className="text-[10px] tracking-[0.3em] uppercase text-cream-200/70">Recorrido virtual</div>
+                <div className="font-display text-2xl text-cream-50 mt-1 leading-tight">Tour 360° por la estancia</div>
               </div>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </a>
           </div>
         </div>
       </div>
 
-      {/* Footer strip */}
-      <div style={{
-        maxWidth: "var(--max-w)",
-        margin: "64px auto 0",
-        paddingTop: 28,
-        borderTop: "1px solid rgba(245,237,223,0.1)",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        flexWrap: "wrap",
-        gap: 16,
-        fontSize: 12,
-        color: "rgba(245,237,223,0.4)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <BrandMark size={18} />
-          <span style={{ fontFamily: "var(--font-display)", fontSize: 15, color: "var(--c-cream-100)" }}>
-            Estancia Paraíso
-          </span>
-          <span>· Barrio privado · Estancia Grande, Entre Ríos</span>
-        </div>
-        <div style={{ display: "flex", gap: 24 }}>
-          {[
-            { l: "Master Plan", h: "https://estanciaparaiso.com.ar/master-plan-2/" },
-            { l: "Tour 360°", h: "https://estanciaparaiso.com.ar/tour-360/" },
-            { l: "Contacto", h: "https://estanciaparaiso.com.ar/contacto/" },
-          ].map(({ l, h }) => (
-            <a key={l} href={h} target="_blank" rel="noopener" className="link"
-              style={{ color: "rgba(245,237,223,0.45)", textDecoration: "none" }}>
-              {l}
-            </a>
-          ))}
+      {/* footer strip */}
+      <div className="mt-24 border-t border-cream-200/15">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-8 flex flex-wrap items-center justify-between gap-4 text-xs text-cream-200/60">
+          <div className="flex items-center gap-3">
+            <BrandMark size={20} />
+            <span className="font-display text-base text-cream-100">Estancia Paraíso</span>
+            <span>· Barrio privado · Estancia Grande, Entre Ríos</span>
+          </div>
+          <div className="flex gap-6">
+            <a href="https://estanciaparaiso.com.ar/master-plan-2/" target="_blank" rel="noopener" className="link-underline">Master Plan</a>
+            <a href="https://estanciaparaiso.com.ar/tour-360/" target="_blank" rel="noopener" className="link-underline">Tour 360°</a>
+            <a href="https://estanciaparaiso.com.ar/contacto/" target="_blank" rel="noopener" className="link-underline">Contacto</a>
+          </div>
         </div>
       </div>
-    </section>
-  );
+    </section>);
+
 }
 
-// ─── APP ─────────────────────────────────────────────────────────────────────
-export default function App() {
+/* ─────────────────────── APP ─────────────────────── */
+/* ─────────────────────── TWEAKS ─────────────────────── */
+const MOODS = [
+{ key: 'tierra', label: 'Tierra cálida', swatches: ['#4A3826', '#F5EEDF', '#6E7656'], hint: 'Cremas, marrón profundo y verde sauce.' },
+{ key: 'atardecer', label: 'Atardecer', swatches: ['#4F261F', '#F7E8D5', '#E06E40'], hint: 'Terracotas tibios, cobre y rosa palo.' },
+{ key: 'bosque', label: 'Bosque', swatches: ['#252F18', '#EBE9D7', '#647254'], hint: 'Musgo, oliva y cremas fríos.' },
+{ key: 'bruma', label: 'Bruma', swatches: ['#2F2F29', '#E8E5DB', '#646E5C'], hint: 'Piedra caliza, sage seco y carbón.' }];
+
+
+const TYPES = [
+{ value: 'editorial', label: 'Editorial' },
+{ value: 'boutique', label: 'Boutique' },
+{ value: 'austera', label: 'Austera' }];
+
+
+const RHYTHMS = [
+{ value: 'compacto', label: 'Compacto' },
+{ value: 'holgado', label: 'Holgado' },
+{ value: 'cinemascope', label: 'Cinemascope' }];
+
+
+function MoodPicker({ value, onChange }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+      {MOODS.map((m) => {
+        const active = value === m.key;
+        return (
+          <button
+            key={m.key}
+            type="button"
+            onClick={() => onChange(m.key)}
+            title={m.hint}
+            style={{
+              appearance: 'none',
+              padding: '7px 8px',
+              border: active ? '1px solid rgba(0,0,0,0.55)' : '0.5px solid rgba(0,0,0,0.12)',
+              boxShadow: active ?
+              '0 0 0 2px rgba(255,255,255,0.9) inset, 0 1px 6px rgba(0,0,0,0.10)' :
+              '0 1px 0 rgba(255,255,255,0.5) inset',
+              borderRadius: 8,
+              background: 'rgba(255,255,255,0.55)',
+              color: '#29261b',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6
+            }}>
+            
+            <div style={{ display: 'flex', gap: 3 }}>
+              {m.swatches.map((s, i) =>
+              <span
+                key={i}
+                style={{
+                  width: '100%', height: 18, borderRadius: 4,
+                  background: s, border: '0.5px solid rgba(0,0,0,0.08)'
+                }} />
+
+              )}
+            </div>
+            <span style={{ fontSize: 10.5, fontWeight: 500 }}>{m.label}</span>
+          </button>);
+
+      })}
+    </div>);
+
+}
+
+function Tweaks() {
+  const defaults = typeof window !== 'undefined' && window.TWEAK_DEFAULTS ||
+  { mood: 'tierra', type: 'editorial', rhythm: 'holgado' };
+  const [t, setTweak] = useTweaks(defaults);
+
+  React.useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.mood = t.mood || 'tierra';
+    root.dataset.type = t.type || 'editorial';
+    root.dataset.rhythm = t.rhythm || 'holgado';
+  }, [t.mood, t.type, t.rhythm]);
+
+  return (
+    <TweaksPanel>
+      <TweakSection label="Atmósfera" />
+      <MoodPicker value={t.mood} onChange={(v) => setTweak('mood', v)} />
+
+      <TweakSection label="Tipografía de display" />
+      <TweakRadio
+        label="Familia"
+        value={t.type}
+        options={TYPES}
+        onChange={(v) => setTweak('type', v)} />
+      
+
+      <TweakSection label="Ritmo editorial" />
+      <TweakRadio
+        label="Composición"
+        value={t.rhythm}
+        options={RHYTHMS}
+        onChange={(v) => setTweak('rhythm', v)} />
+      
+    </TweaksPanel>);
+
+}
+
+function App() {
   return (
     <>
-      <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
       <PromoBar />
       <Nav />
       <Hero />
@@ -1765,6 +974,9 @@ export default function App() {
       <Planes />
       <Gallery />
       <Contacto />
-    </>
-  );
+      <Tweaks />
+    </>);
+
 }
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
